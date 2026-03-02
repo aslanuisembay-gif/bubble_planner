@@ -1,39 +1,24 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import 'app_theme.dart';
 
 void main() {
   runApp(const BubblePlannerApp());
 }
 
-/// Основное приложение Bubble Planner.
+/// Основное приложение Bubble Planner (стили из artifact.json).
 class BubblePlannerApp extends StatelessWidget {
   const BubblePlannerApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final baseTheme = ThemeData(
-      useMaterial3: true,
-      colorScheme: const ColorScheme.dark(
-        background: Color(0xFF050509),
-        surface: Color(0xFF181820),
-        primary: Color(0xFF4DA6FF),
-        secondary: Color(0xFFFFB800),
-        tertiary: Color(0xFF8A2BE2),
-      ),
-      scaffoldBackgroundColor: const Color(0xFF050509),
-      fontFamily: 'Outfit',
-      textTheme: const TextTheme(
-        bodyMedium: TextStyle(
-          letterSpacing: 0.1,
-        ),
-      ),
-    );
-
     return MaterialApp(
       title: 'Bubble Planner',
       debugShowCheckedModeBanner: false,
-      theme: baseTheme,
+      theme: AppTheme.dark,
       home: const BubblePlannerRoot(),
     );
   }
@@ -245,6 +230,20 @@ class _BubblePlannerRootState extends State<BubblePlannerRoot> {
     _updateTasks(newTasks);
   }
 
+  void _deleteTasksInCategory(String category) {
+    setState(() {
+      _tasks = _tasks.where((t) => t.category != category).toList();
+    });
+    _repository.saveTasks(_tasks);
+  }
+
+  void _deleteTask(Task task) {
+    setState(() {
+      _tasks = _tasks.where((t) => t.id != task.id).toList();
+    });
+    _repository.saveTasks(_tasks);
+  }
+
   @override
   Widget build(BuildContext context) {
     final activeCount =
@@ -257,9 +256,12 @@ class _BubblePlannerRootState extends State<BubblePlannerRoot> {
         tasks: _tasks,
         isLoading: _isLoading,
         onToggleTaskStatus: _toggleTaskStatus,
+        onDeleteTask: _deleteTask,
+        onDeleteCategory: _deleteTasksInCategory,
+        onOpenSettings: () {},
       ),
       _ListPlaceholder(tasks: _tasks),
-      _SharePlaceholder(taskCount: _tasks.length),
+      _SharePlaceholder(tasks: _tasks),
     ];
 
     return Scaffold(
@@ -294,11 +296,17 @@ class BubblesScreen extends StatelessWidget {
     required this.tasks,
     required this.isLoading,
     required this.onToggleTaskStatus,
+    required this.onDeleteTask,
+    required this.onDeleteCategory,
+    required this.onOpenSettings,
   });
 
   final List<Task> tasks;
   final bool isLoading;
   final void Function(Task task) onToggleTaskStatus;
+  final void Function(Task task) onDeleteTask;
+  final void Function(String category) onDeleteCategory;
+  final VoidCallback onOpenSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -318,86 +326,112 @@ class BubblesScreen extends StatelessWidget {
             children: [
               const _AppIcon(),
               const SizedBox(width: 10),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'bubblePlanner',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                  Text(
-                    'Bubbles',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.white.withOpacity(0.6),
-                        ),
-                  ),
-                ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'bubblePlanner',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                    Text(
+                      'Bubbles',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Colors.white.withOpacity(0.6),
+                          ),
+                    ),
+                  ],
+                ),
               ),
-              const Spacer(),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    'Dones $doneCount',
+                    'Done: $doneCount',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: const Color(0xFF5BFF7F),
+                          color: AppColors.done,
                           fontWeight: FontWeight.w600,
                         ),
                   ),
                   Text(
-                    'Actives $activeCount',
+                    'Active: $activeCount',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: const Color(0xFFFFD54F),
+                          color: AppColors.active,
                           fontWeight: FontWeight.w600,
                         ),
                   ),
                 ],
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: Icon(Icons.search, color: Colors.white.withOpacity(0.8)),
+                onPressed: () {},
+                tooltip: 'Поиск',
+              ),
+              IconButton(
+                icon: Icon(Icons.ios_share_rounded,
+                    color: Colors.white.withOpacity(0.8)),
+                tooltip: 'Поделиться (копировать задачи в буфер)',
+                onPressed: () {
+                  final lines =
+                      tasks.map((t) => t.text).where((s) => s.isNotEmpty);
+                  if (lines.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Пока нет задач для копирования'),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                    return;
+                  }
+                  Clipboard.setData(
+                      ClipboardData(text: lines.join('\n')));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Текст задач скопирован в буфер обмена'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
+              ),
+              IconButton(
+                icon: Icon(Icons.settings_outlined,
+                    color: Colors.white.withOpacity(0.8)),
+                tooltip: 'Настройки',
+                onPressed: onOpenSettings,
               ),
             ],
           ),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Row(
-            children: [
-              Expanded(
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.06),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.08),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.search,
-                        size: 18,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.08),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.search,
+                  size: 18,
+                  color: Colors.white.withOpacity(0.4),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Search tasks or categories...',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Colors.white.withOpacity(0.4),
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Search tasks or categories...',
-                        style:
-                            Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: Colors.white.withOpacity(0.4),
-                                ),
-                      ),
-                    ],
-                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              _CircleIconButton(
-                icon: Icons.settings_outlined,
-                onTap: () {},
-              ),
-            ],
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 20),
@@ -409,6 +443,8 @@ class BubblesScreen extends StatelessWidget {
               : _BubblesCanvasView(
                   grouped: grouped,
                   onToggleTaskStatus: onToggleTaskStatus,
+                  onDeleteTask: onDeleteTask,
+                  onDeleteCategory: onDeleteCategory,
                 ),
         ),
       ],
@@ -420,10 +456,14 @@ class _BubblesCanvasView extends StatelessWidget {
   const _BubblesCanvasView({
     required this.grouped,
     required this.onToggleTaskStatus,
+    required this.onDeleteTask,
+    required this.onDeleteCategory,
   });
 
   final Map<String, List<Task>> grouped;
   final void Function(Task task) onToggleTaskStatus;
+  final void Function(Task task) onDeleteTask;
+  final void Function(String category) onDeleteCategory;
 
   @override
   Widget build(BuildContext context) {
@@ -457,6 +497,8 @@ class _BubblesCanvasView extends StatelessWidget {
                   tasks: entry.value,
                   maxWidth: constraints.maxWidth,
                   onToggleTaskStatus: onToggleTaskStatus,
+                  onDeleteTask: onDeleteTask,
+                  onDeleteCategory: onDeleteCategory,
                 ),
             ],
           ),
@@ -472,12 +514,16 @@ class _CategoryBubble extends StatelessWidget {
     required this.tasks,
     required this.maxWidth,
     required this.onToggleTaskStatus,
+    required this.onDeleteTask,
+    required this.onDeleteCategory,
   });
 
   final String category;
   final List<Task> tasks;
   final double maxWidth;
   final void Function(Task task) onToggleTaskStatus;
+  final void Function(Task task) onDeleteTask;
+  final void Function(String category) onDeleteCategory;
 
   @override
   Widget build(BuildContext context) {
@@ -487,71 +533,151 @@ class _CategoryBubble extends StatelessWidget {
     final double bubbleSize =
         stats.size.clamp(110.0, maxWidth * 0.7) as double;
 
-    return GestureDetector(
-      onTap: () {
-        showModalBottomSheet<void>(
-          context: context,
-          isScrollControlled: true,
-          backgroundColor: Colors.transparent,
-          builder: (context) {
-            return _BubbleDetailsSheet(
-              category: category,
-              color: color,
-              tasks: tasks,
-              onToggleTaskStatus: onToggleTaskStatus,
-            );
-          },
-        );
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
-        width: bubbleSize,
-        height: bubbleSize,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: RadialGradient(
-            colors: [
-              color.withOpacity(0.9),
-              color.withOpacity(0.6),
-              Colors.black.withOpacity(0.85),
-            ],
-            center: const Alignment(-0.4, -0.6),
-            radius: 1.1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: color.withOpacity(0.7),
-              blurRadius: 40,
-              spreadRadius: 2,
-            ),
-          ],
-        ),
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  _getCategoryTitle(category),
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
+    return SizedBox(
+      width: bubbleSize,
+      height: bubbleSize,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          GestureDetector(
+            onTap: () {
+              showModalBottomSheet<void>(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (context) {
+                  return _BubbleDetailsSheet(
+                    category: category,
+                    color: color,
+                    tasks: tasks,
+                    onToggleTaskStatus: onToggleTaskStatus,
+                    onDeleteTask: (task) {
+                      onDeleteTask(task);
+                      Navigator.of(context).pop();
+                    },
+                    onDeleteCategory: () {
+                      onDeleteCategory(category);
+                      Navigator.of(context).pop();
+                    },
+                    onShare: () {
+                      final text = tasks.map((t) => t.text).join('\n');
+                      if (text.isNotEmpty) {
+                        Clipboard.setData(ClipboardData(text: text));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Текст задач скопирован в буфер'),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      }
+                    },
+                  );
+                },
+              );
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOut,
+              width: bubbleSize,
+              height: bubbleSize,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    color.withOpacity(0.9),
+                    color.withOpacity(0.6),
+                    Colors.black.withOpacity(0.85),
+                  ],
+                  center: const Alignment(-0.4, -0.6),
+                  radius: 1.1,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '${stats.openTaskCount} tasks',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.white.withOpacity(0.8),
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withOpacity(0.7),
+                    blurRadius: 40,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _getCategoryTitle(category),
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
                       ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${stats.openTaskCount} tasks',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Colors.white.withOpacity(0.8),
+                            ),
+                      ),
+                    ],
+                  ),
                 ),
-              ],
+              ),
             ),
           ),
-        ),
+          Positioned(
+            top: 6,
+            right: 6,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () async {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('Удалить категорию?'),
+                      content: Text(
+                        'Все задачи в категории «${_getCategoryTitle(category)}» будут удалены.',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: const Text('Отмена'),
+                        ),
+                        FilledButton(
+                          onPressed: () => Navigator.pop(ctx, true),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Colors.red,
+                          ),
+                          child: const Text('Удалить'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirm == true) onDeleteCategory(category);
+                },
+                borderRadius: BorderRadius.circular(22),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.12),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.15),
+                      width: 1,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.delete_outline_rounded,
+                    size: 18,
+                    color: Colors.white.withOpacity(0.85),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -563,12 +689,18 @@ class _BubbleDetailsSheet extends StatelessWidget {
     required this.color,
     required this.tasks,
     required this.onToggleTaskStatus,
+    required this.onDeleteTask,
+    required this.onDeleteCategory,
+    required this.onShare,
   });
 
   final String category;
   final Color color;
   final List<Task> tasks;
   final void Function(Task task) onToggleTaskStatus;
+  final void Function(Task task) onDeleteTask;
+  final VoidCallback onDeleteCategory;
+  final VoidCallback onShare;
 
   @override
   Widget build(BuildContext context) {
@@ -590,7 +722,7 @@ class _BubbleDetailsSheet extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
         child: Container(
-          color: const Color(0xFF12121A),
+          color: AppColors.sheetBackground,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -633,13 +765,47 @@ class _BubbleDetailsSheet extends StatelessWidget {
                     ),
                     const Spacer(),
                     IconButton(
+                      icon: const Icon(Icons.share_outlined),
+                      tooltip: 'Поделиться (копировать в буфер)',
+                      onPressed: onShare,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline_rounded),
+                      tooltip: 'Удалить все задачи категории',
+                      onPressed: () async {
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Удалить категорию?'),
+                            content: Text(
+                              'Все задачи в категории «${_getCategoryTitle(category)}» будут удалены.',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, false),
+                                child: const Text('Отмена'),
+                              ),
+                              FilledButton(
+                                onPressed: () => Navigator.pop(ctx, true),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: Colors.red,
+                                ),
+                                child: const Text('Удалить'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirm == true) onDeleteCategory();
+                      },
+                    ),
+                    IconButton(
                       icon: const Icon(Icons.close_rounded),
                       onPressed: () => Navigator.of(context).pop(),
                     ),
                   ],
                 ),
               ),
-              const Divider(height: 1, color: Color(0x22FFFFFF)),
+              const Divider(height: 1, color: AppColors.divider),
               Flexible(
                 child: ListView.separated(
                   shrinkWrap: true,
@@ -672,7 +838,7 @@ class _BubbleDetailsSheet extends StatelessWidget {
                                   : Icons.radio_button_unchecked,
                               size: 20,
                               color: isDone
-                                  ? const Color(0xFF5BFF7F)
+                                  ? AppColors.done
                                   : Colors.white.withOpacity(0.6),
                             ),
                             const SizedBox(width: 10),
@@ -707,6 +873,45 @@ class _BubbleDetailsSheet extends StatelessWidget {
                                   ),
                                 ],
                               ),
+                            ),
+                            IconButton(
+                              icon: Icon(
+                                Icons.delete_outline_rounded,
+                                size: 20,
+                                color: Colors.white.withOpacity(0.5),
+                              ),
+                              tooltip: 'Удалить задачу',
+                              onPressed: () async {
+                                final confirm = await showDialog<bool>(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    title: const Text('Удалить задачу?'),
+                                    content: Text(
+                                      task.text.length > 50
+                                          ? '${task.text.substring(0, 50)}…'
+                                          : task.text,
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(ctx, false),
+                                        child: const Text('Отмена'),
+                                      ),
+                                      FilledButton(
+                                        onPressed: () =>
+                                            Navigator.pop(ctx, true),
+                                        style: FilledButton.styleFrom(
+                                          backgroundColor: Colors.red,
+                                        ),
+                                        child: const Text('Удалить'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                if (confirm == true) {
+                                  onDeleteTask(task);
+                                }
+                              },
                             ),
                           ],
                         ),
@@ -775,15 +980,15 @@ class _TalkPlaceholder extends StatelessWidget {
             shape: BoxShape.circle,
             gradient: const RadialGradient(
               colors: [
-                Color(0xFF2C3855),
-                Color(0xFF101420),
+                AppColors.appIconEnd,
+                AppColors.gradientBottom,
               ],
               center: Alignment.topLeft,
               radius: 1.0,
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF4DA6FF).withOpacity(0.6),
+                color: AppColors.accentSecondaryBlue.withOpacity(0.6),
                 blurRadius: 35,
                 spreadRadius: 4,
               ),
@@ -845,7 +1050,7 @@ class _ListPlaceholder extends StatelessWidget {
                 );
               },
               separatorBuilder: (_, __) => const Divider(
-                color: Color(0x22FFFFFF),
+                color: AppColors.divider,
               ),
             ),
           ),
@@ -856,12 +1061,15 @@ class _ListPlaceholder extends StatelessWidget {
 }
 
 class _SharePlaceholder extends StatelessWidget {
-  const _SharePlaceholder({required this.taskCount});
+  const _SharePlaceholder({required this.tasks});
 
-  final int taskCount;
+  final List<Task> tasks;
 
   @override
   Widget build(BuildContext context) {
+    final taskTexts = tasks.map((t) => t.text).where((s) => s.isNotEmpty);
+    final canCopy = taskTexts.isNotEmpty;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -875,16 +1083,35 @@ class _SharePlaceholder extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              'Share (stub)',
+              'Поделиться',
               style: Theme.of(context).textTheme.titleMedium,
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 8),
             Text(
-              'Later you\'ll be able to export $taskCount tasks.',
+              canCopy
+                  ? 'Скопировать текст всех задач в буфер обмена.'
+                  : 'Пока нет задач для копирования.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Colors.white.withOpacity(0.6),
                   ),
+            ),
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              onPressed: canCopy
+                  ? () {
+                      final text = taskTexts.join('\n');
+                      Clipboard.setData(ClipboardData(text: text));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Текст задач скопирован в буфер обмена'),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    }
+                  : null,
+              icon: const Icon(Icons.copy_rounded, size: 20),
+              label: const Text('Поделиться (копировать в буфер)'),
             ),
           ],
         ),
@@ -915,7 +1142,7 @@ class _BottomNavBar extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
       decoration: BoxDecoration(
-        color: const Color(0xFF050509).withOpacity(0.95),
+        color: AppColors.bg.withOpacity(0.95),
         boxShadow: const [
           BoxShadow(
             color: Colors.black54,
@@ -1004,9 +1231,9 @@ class _GradientBackground extends StatelessWidget {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            Color(0xFF050509),
-            Color(0xFF0B0F1D),
-            Color(0xFF1A1930),
+            AppColors.gradientTop,
+            AppColors.gradientMid,
+            AppColors.gradientBottom,
           ],
         ),
       ),
@@ -1028,15 +1255,15 @@ class _AppIcon extends StatelessWidget {
         shape: BoxShape.circle,
         gradient: const LinearGradient(
           colors: [
-            Color(0xFF4DA6FF),
-            Color(0xFF276DFF),
+            AppColors.accentSecondaryBlue,
+            AppColors.appIconStart,
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF4DA6FF).withOpacity(0.7),
+            color: AppColors.accentSecondaryBlue.withOpacity(0.7),
             blurRadius: 18,
           ),
         ],
@@ -1097,19 +1324,19 @@ Map<String, List<Task>> _groupTasksByCategory(List<Task> tasks) {
 Color _getCategoryColor(String category) {
   switch (category) {
     case 'Покупки':
-      return const Color(0xFF8E5AFF);
+      return AppColors.categoryShopping;
     case 'Работа':
-      return const Color(0xFFE05A5A);
+      return AppColors.categoryWork;
     case 'Дом':
-      return const Color(0xFF3FA7D6);
+      return AppColors.categoryHome;
     case 'Здоровье':
-      return const Color(0xFF4CAF50);
+      return AppColors.categoryHealth;
     case 'Дети':
-      return const Color(0xFFFFA726);
+      return AppColors.categoryKids;
     case 'Финансы':
-      return const Color(0xFF26C6DA);
+      return AppColors.categoryFinance;
     default:
-      return const Color(0xFF7E7E8A);
+      return AppColors.categoryDefault;
   }
 }
 

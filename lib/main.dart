@@ -1,267 +1,59 @@
-import 'dart:math';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 
+import 'app_state.dart';
 import 'app_theme.dart';
+import 'widgets/bubble_widget.dart';
+import 'widgets/settings_sheet.dart';
 
-void main() {
-  runApp(const BubblePlannerApp());
-}
+void main() => runApp(
+      ChangeNotifierProvider(
+        create: (_) => AppState(),
+        child: const BubblePlannerApp(),
+      ),
+    );
 
-/// Основное приложение Bubble Planner (стили из artifact.json).
 class BubblePlannerApp extends StatelessWidget {
   const BubblePlannerApp({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
     return MaterialApp(
-      title: 'Bubble Planner',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.dark,
-      home: const BubblePlannerRoot(),
+      title: 'Bubble Planner',
+      theme: AppTheme.dark(state.fontChoice),
+      home: const HomeScreen(),
     );
   }
 }
 
-/// Статусы задач как в React-версии.
-enum TaskStatus { active, done }
-
-/// Модель задачи.
-class Task {
-  Task({
-    required this.id,
-    required this.text,
-    required this.category,
-    required this.status,
-    this.dueAt,
-  });
-
-  final String id;
-  final String text;
-  final String category; // 'Покупки', 'Работа', ...
-  final TaskStatus status;
-  final DateTime? dueAt;
-
-  Task copyWith({
-    String? id,
-    String? text,
-    String? category,
-    TaskStatus? status,
-    DateTime? dueAt,
-  }) {
-    return Task(
-      id: id ?? this.id,
-      text: text ?? this.text,
-      category: category ?? this.category,
-      status: status ?? this.status,
-      dueAt: dueAt ?? this.dueAt,
-    );
-  }
-}
-
-/// Расчёт статистики пузыря по задачам категории (порт из utils.js).
-class BubbleStats {
-  const BubbleStats({
-    required this.size,
-    required this.urgencyScore,
-    required this.openTaskCount,
-  });
-
-  final double size;
-  final int urgencyScore;
-  final int openTaskCount;
-}
-
-BubbleStats calculateBubbleStats(List<Task> tasks) {
-  final activeTasks =
-      tasks.where((t) => t.status != TaskStatus.done).toList(growable: false);
-  final count = activeTasks.length;
-
-  var urgencyScore = 0;
-  final now = DateTime.now();
-
-  for (final task in activeTasks) {
-    final dueAt = task.dueAt;
-    if (dueAt != null) {
-      final diff = dueAt.millisecondsSinceEpoch - now.millisecondsSinceEpoch;
-      final hours = diff / 3600000;
-      final days = hours / 24;
-
-      if (hours <= 24) {
-        urgencyScore += 5;
-      } else if (days <= 3) {
-        urgencyScore += 3;
-      } else if (days <= 7) {
-        urgencyScore += 2;
-      } else {
-        urgencyScore += 1;
-      }
-    } else {
-      urgencyScore += 1;
-    }
-  }
-
-  const baseSize = 78.0;
-  const k1 = 5.0;
-  const k2 = 7.0;
-  const minSize = 85.0;
-  const maxSize = 160.0;
-
-  final size = (baseSize + urgencyScore * k1 + count * k2)
-      .clamp(minSize, maxSize)
-      .toDouble();
-
-  return BubbleStats(
-    size: size,
-    urgencyScore: urgencyScore,
-    openTaskCount: count,
-  );
-}
-
-/// Простейший репозиторий задач — отдельный слой под будущий Convex.
-class TaskRepository {
-  TaskRepository() : _random = Random();
-
-  final Random _random;
-
-  // Базовые семена задач из React-версии.
-  Future<List<Task>> loadInitialTasks() async {
-    final now = DateTime.now();
-    final tasks = <Task>[
-      Task(
-        id: _genId(),
-        text: 'Купить молоко и хлеб',
-        category: 'Покупки',
-        status: TaskStatus.active,
-        dueAt: now.add(const Duration(hours: 5)),
-      ),
-      Task(
-        id: _genId(),
-        text: 'Подготовить презентацию',
-        category: 'Работа',
-        status: TaskStatus.active,
-        dueAt: now.add(const Duration(days: 1)),
-      ),
-      Task(
-        id: _genId(),
-        text: 'Записаться к врачу',
-        category: 'Здоровье',
-        status: TaskStatus.active,
-        dueAt: now.add(const Duration(days: 3)),
-      ),
-      Task(
-        id: _genId(),
-        text: 'Играть с детьми',
-        category: 'Дети',
-        status: TaskStatus.active,
-        dueAt: now.add(const Duration(days: 2)),
-      ),
-      Task(
-        id: _genId(),
-        text: 'Оплатить счета',
-        category: 'Финансы',
-        status: TaskStatus.active,
-        dueAt: now.add(const Duration(days: 4)),
-      ),
-      Task(
-        id: _genId(),
-        text: 'Сделать генеральную уборку',
-        category: 'Дом',
-        status: TaskStatus.active,
-      ),
-    ];
-    return tasks;
-  }
-
-  String _genId() =>
-      DateTime.now().microsecondsSinceEpoch.toString() +
-      _random.nextInt(999999).toString().padLeft(6, '0');
-
-  Future<void> saveTasks(List<Task> tasks) async {
-    // Точка расширения под Convex: здесь можно вызывать клиент Convex
-    // и синхронизировать список задач.
-    await Future<void>.value();
-  }
-}
-
-/// Корневой экран с нижней навигацией (Talk / Bubbles / List / Share).
-class BubblePlannerRoot extends StatefulWidget {
-  const BubblePlannerRoot({super.key});
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
 
   @override
-  State<BubblePlannerRoot> createState() => _BubblePlannerRootState();
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _BubblePlannerRootState extends State<BubblePlannerRoot> {
-  final TaskRepository _repository = TaskRepository();
-
-  int _currentIndex = 1; // По умолчанию вкладка Bubbles.
-  List<Task> _tasks = const [];
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final tasks = await _repository.loadInitialTasks();
-    setState(() {
-      _tasks = tasks;
-      _isLoading = false;
-    });
-  }
-
-  void _updateTasks(List<Task> tasks) {
-    setState(() {
-      _tasks = tasks;
-    });
-    _repository.saveTasks(tasks);
-  }
-
-  void _toggleTaskStatus(Task task) {
-    final updated = task.copyWith(
-      status:
-          task.status == TaskStatus.done ? TaskStatus.active : TaskStatus.done,
-    );
-    final newTasks = _tasks.map((t) => t.id == task.id ? updated : t).toList();
-    _updateTasks(newTasks);
-  }
-
-  void _deleteTasksInCategory(String category) {
-    setState(() {
-      _tasks = _tasks.where((t) => t.category != category).toList();
-    });
-    _repository.saveTasks(_tasks);
-  }
-
-  void _deleteTask(Task task) {
-    setState(() {
-      _tasks = _tasks.where((t) => t.id != task.id).toList();
-    });
-    _repository.saveTasks(_tasks);
-  }
+class _HomeScreenState extends State<HomeScreen> {
+  int _currentIndex = 1;
+  Offset _parallax = Offset.zero;
 
   @override
   Widget build(BuildContext context) {
-    final activeCount =
-        _tasks.where((t) => t.status == TaskStatus.active).length;
-    final doneCount = _tasks.where((t) => t.status == TaskStatus.done).length;
-
-    final pages = [
-      _TalkPlaceholder(doneCount: doneCount, activeCount: activeCount),
-      BubblesScreen(
-        tasks: _tasks,
-        isLoading: _isLoading,
-        onToggleTaskStatus: _toggleTaskStatus,
-        onDeleteTask: _deleteTask,
-        onDeleteCategory: _deleteTasksInCategory,
-        onOpenSettings: () {},
+    final state = context.watch<AppState>();
+    final pages = <Widget>[
+      const _TalkPage(),
+      _BubblesPage(
+        parallax: _parallax,
+        onParallax: (value) => setState(() => _parallax = value),
       ),
-      _ListPlaceholder(tasks: _tasks),
-      _SharePlaceholder(tasks: _tasks),
+      const _SimpleTab(title: 'List'),
+      const _SimpleTab(title: 'Share'),
     ];
 
     return Scaffold(
@@ -271,856 +63,802 @@ class _BubblePlannerRootState extends State<BubblePlannerRoot> {
           const _GradientBackground(),
           SafeArea(
             child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 250),
+              duration: const Duration(milliseconds: 260),
               child: pages[_currentIndex],
             ),
           ),
+          if (_currentIndex == 1)
+            Positioned(
+              top: 68,
+              right: 20,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    'Done: ${state.doneCount}',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: AppColors.done,
+                        ),
+                  ),
+                  Text(
+                    'Active: ${state.activeCount}',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: AppColors.active,
+                        ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
       bottomNavigationBar: _BottomNavBar(
         currentIndex: _currentIndex,
         onChanged: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
+          HapticFeedback.selectionClick();
+          setState(() => _currentIndex = index);
         },
       ),
     );
   }
 }
 
-/// Экран пузырей — основная часть приложения.
-class BubblesScreen extends StatelessWidget {
-  const BubblesScreen({
-    super.key,
-    required this.tasks,
-    required this.isLoading,
-    required this.onToggleTaskStatus,
-    required this.onDeleteTask,
-    required this.onDeleteCategory,
-    required this.onOpenSettings,
-  });
+class _BubblesPage extends StatelessWidget {
+  const _BubblesPage({required this.parallax, required this.onParallax});
 
-  final List<Task> tasks;
-  final bool isLoading;
-  final void Function(Task task) onToggleTaskStatus;
-  final void Function(Task task) onDeleteTask;
-  final void Function(String category) onDeleteCategory;
-  final VoidCallback onOpenSettings;
+  final Offset parallax;
+  final ValueChanged<Offset> onParallax;
 
   @override
   Widget build(BuildContext context) {
-    final grouped = _groupTasksByCategory(tasks);
-
-    final doneCount =
-        tasks.where((t) => t.status == TaskStatus.done).length.toString();
-    final activeCount =
-        tasks.where((t) => t.status == TaskStatus.active).length.toString();
-
+    final categories = context.watch<AppState>().categories;
+    final size = MediaQuery.of(context).size;
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 4),
           child: Row(
             children: [
-              const _AppIcon(),
+              Text(
+                'Bubbles',
+                style: Theme.of(context).textTheme.headlineLarge,
+              ),
+              const Spacer(),
+              _GlassIconButton(icon: Icons.search_rounded, onTap: () {}),
               const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'bubblePlanner',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                    ),
-                    Text(
-                      'Bubbles',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Colors.white.withOpacity(0.6),
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    'Done: $doneCount',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.done,
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                  Text(
-                    'Active: $activeCount',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.active,
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                ],
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                icon: Icon(Icons.search, color: Colors.white.withOpacity(0.8)),
-                onPressed: () {},
-                tooltip: 'Поиск',
-              ),
-              IconButton(
-                icon: Icon(Icons.ios_share_rounded,
-                    color: Colors.white.withOpacity(0.8)),
-                tooltip: 'Поделиться (копировать задачи в буфер)',
-                onPressed: () {
-                  final lines =
-                      tasks.map((t) => t.text).where((s) => s.isNotEmpty);
-                  if (lines.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Пока нет задач для копирования'),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                    return;
-                  }
-                  Clipboard.setData(
-                      ClipboardData(text: lines.join('\n')));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Текст задач скопирован в буфер обмена'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
+              _GlassIconButton(
+                icon: Icons.settings_rounded,
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  showModalBottomSheet<void>(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (_) => const SettingsSheet(),
                   );
                 },
-              ),
-              IconButton(
-                icon: Icon(Icons.settings_outlined,
-                    color: Colors.white.withOpacity(0.8)),
-                tooltip: 'Настройки',
-                onPressed: onOpenSettings,
               ),
             ],
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.06),
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.08),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.search,
-                  size: 18,
-                  color: Colors.white.withOpacity(0.4),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Search tasks or categories...',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.white.withOpacity(0.4),
+        Expanded(
+          child: GestureDetector(
+            onPanUpdate: (details) {
+              final dx = (details.localPosition.dx / size.width - 0.5) * 8;
+              final dy = (details.localPosition.dy / size.height - 0.5) * 10;
+              onParallax(Offset(dx, dy));
+            },
+            onPanEnd: (_) => onParallax(Offset.zero),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return Stack(
+                  children: [
+                    for (final item in categories)
+                      BubbleWidget(
+                        category: item.copyWith(
+                          position: Offset(
+                            item.position.dx * constraints.maxWidth -
+                                item.size / 2,
+                            item.position.dy * constraints.maxHeight -
+                                item.size / 2,
+                          ),
+                        ),
+                        parallaxOffset: parallax,
+                        onTap: () {
+                          Navigator.of(context).push(
+                            PageRouteBuilder<void>(
+                              transitionDuration:
+                                  const Duration(milliseconds: 330),
+                              pageBuilder: (_, animation, __) => FadeTransition(
+                                opacity: animation,
+                                child: CategoryTasksScreen(category: item),
+                              ),
+                            ),
+                          );
+                        },
                       ),
-                ),
-              ],
+                  ],
+                );
+              },
             ),
           ),
-        ),
-        const SizedBox(height: 20),
-        Expanded(
-          child: isLoading
-              ? const Center(
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : _BubblesCanvasView(
-                  grouped: grouped,
-                  onToggleTaskStatus: onToggleTaskStatus,
-                  onDeleteTask: onDeleteTask,
-                  onDeleteCategory: onDeleteCategory,
-                ),
         ),
       ],
     );
   }
 }
 
-class _BubblesCanvasView extends StatelessWidget {
-  const _BubblesCanvasView({
-    required this.grouped,
-    required this.onToggleTaskStatus,
-    required this.onDeleteTask,
-    required this.onDeleteCategory,
-  });
+class CategoryTasksScreen extends StatelessWidget {
+  const CategoryTasksScreen({super.key, required this.category});
 
-  final Map<String, List<Task>> grouped;
-  final void Function(Task task) onToggleTaskStatus;
-  final void Function(Task task) onDeleteTask;
-  final void Function(String category) onDeleteCategory;
+  final BubbleCategory category;
 
   @override
   Widget build(BuildContext context) {
-    if (grouped.isEmpty) {
-      return Center(
-        child: Text(
-          'Your bubbles will float here',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Colors.white.withOpacity(0.6),
+    final state = context.watch<AppState>();
+    final allTasks = state.tasksByCategory(category.id);
+    final now = DateTime.now();
+    final todayTasks = allTasks.where((t) {
+      final d = t.dueAt;
+      return d.year == now.year && d.month == now.month && d.day == now.day;
+    }).toList();
+    final followingTasks = allTasks.where((t) {
+      final d = t.dueAt;
+      return !(d.year == now.year && d.month == now.month && d.day == now.day);
+    }).toList();
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Stack(
+        children: [
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFF141516), Color(0xFF101113)],
               ),
-        ),
-      );
-    }
-
-    final entries = grouped.entries.toList()
-      ..sort((a, b) => a.key.compareTo(b.key));
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Wrap(
-            alignment: WrapAlignment.center,
-            runAlignment: WrapAlignment.center,
-            spacing: 18,
-            runSpacing: 18,
-            children: [
-              for (final entry in entries)
-                _CategoryBubble(
-                  category: entry.key,
-                  tasks: entry.value,
-                  maxWidth: constraints.maxWidth,
-                  onToggleTaskStatus: onToggleTaskStatus,
-                  onDeleteTask: onDeleteTask,
-                  onDeleteCategory: onDeleteCategory,
-                ),
-            ],
+            ),
           ),
+          SafeArea(
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Text(
+                        'DONE: ${state.doneCount}',
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                              color: const Color(0xFF00E675),
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'ACTIVE: ${state.activeCount}',
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                              color: const Color(0xFFFFB300),
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: Container(
+                    margin: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF3F3F4),
+                      borderRadius: BorderRadius.circular(34),
+                    ),
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(14, 12, 10, 10),
+                          child: Row(
+                            children: [
+                              Text(
+                                '${category.title} (${allTasks.length})',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .headlineSmall
+                                    ?.copyWith(
+                                      color: const Color(0xFF1D1A1A),
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                              ),
+                              const Spacer(),
+                              _IconAction(
+                                icon: Icons.add,
+                                onTap: () => _openAddTaskDialog(context),
+                              ),
+                              _IconAction(
+                                icon: Icons.search,
+                                onTap: () {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Search opened')),
+                                  );
+                                },
+                              ),
+                              _IconAction(
+                                icon: Icons.share_outlined,
+                                onTap: () {
+                                  final text = allTasks.map((e) => e.title).join('\n');
+                                  Clipboard.setData(ClipboardData(text: text));
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Tasks copied')),
+                                  );
+                                },
+                              ),
+                              _IconAction(
+                                icon: Icons.delete_outline_rounded,
+                                onTap: () {
+                                  for (final t in allTasks) {
+                                    context.read<AppState>().deleteTask(t.id);
+                                  }
+                                },
+                              ),
+                              _IconAction(
+                                icon: Icons.close_rounded,
+                                onTap: () => Navigator.of(context).pop(),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Divider(height: 1, color: Color(0xFFDADADA)),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 10, 24, 10),
+                          child: Row(
+                            children: [
+                              _HeaderCell('DUE', width: 68),
+                              const SizedBox(width: 8),
+                              const Expanded(child: _HeaderCell('TASK DETAILS')),
+                              _HeaderCell('STAT', width: 40),
+                            ],
+                          ),
+                        ),
+                        const Divider(height: 1, color: Color(0xFFDADADA)),
+                        Expanded(
+                          child: ListView(
+                            padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+                            children: [
+                              if (todayTasks.isNotEmpty) ...[
+                                const _SectionLabel('TODAY'),
+                                const SizedBox(height: 6),
+                                for (final task in todayTasks)
+                                  _OpenBubbleTaskTile(
+                                    task: task,
+                                    onToggle: () =>
+                                        context.read<AppState>().toggleTaskDone(task.id),
+                                    onDelete: () =>
+                                        context.read<AppState>().deleteTask(task.id),
+                                    timeText: state.formatDueTime(task.dueAt),
+                                    dayText: state.formatDueDay(task.dueAt),
+                                  ),
+                              ],
+                              if (followingTasks.isNotEmpty) ...[
+                                const _SectionLabel('FOLLOWING DAYS'),
+                                const SizedBox(height: 6),
+                                for (final task in followingTasks)
+                                  _OpenBubbleTaskTile(
+                                    task: task,
+                                    onToggle: () =>
+                                        context.read<AppState>().toggleTaskDone(task.id),
+                                    onDelete: () =>
+                                        context.read<AppState>().deleteTask(task.id),
+                                    timeText: state.formatDueTime(task.dueAt),
+                                    dayText: state.formatDueDay(task.dueAt),
+                                  ),
+                              ],
+                              const SizedBox(height: 10),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF2E8DE),
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: const Color(0xFFE7CFAE)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.wb_sunny_outlined, color: Color(0xFFF0A92D)),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'ENABLE DAILY ROUTINES',
+                                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                        color: const Color(0xFFE2A221),
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                ),
+                              ),
+                              Switch.adaptive(
+                                value: state.dailyRoutinesEnabled,
+                                onChanged: (v) =>
+                                    context.read<AppState>().toggleDailyRoutines(v),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openAddTaskDialog(BuildContext context) {
+    final controller = TextEditingController();
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Add task'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(hintText: 'Task text'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final text = controller.text.trim();
+                if (text.isNotEmpty) {
+                  context.read<AppState>().addTaskFromText(text);
+                }
+                Navigator.pop(dialogContext);
+              },
+              child: const Text('Add'),
+            ),
+          ],
         );
       },
     );
   }
 }
 
-class _CategoryBubble extends StatelessWidget {
-  const _CategoryBubble({
-    required this.category,
-    required this.tasks,
-    required this.maxWidth,
-    required this.onToggleTaskStatus,
-    required this.onDeleteTask,
-    required this.onDeleteCategory,
-  });
+class _IconAction extends StatelessWidget {
+  const _IconAction({required this.icon, required this.onTap});
 
-  final String category;
-  final List<Task> tasks;
-  final double maxWidth;
-  final void Function(Task task) onToggleTaskStatus;
-  final void Function(Task task) onDeleteTask;
-  final void Function(String category) onDeleteCategory;
+  final IconData icon;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final stats = calculateBubbleStats(tasks);
-    final color = _getCategoryColor(category);
+    return IconButton(
+      onPressed: onTap,
+      icon: Icon(icon, color: const Color(0xFF3A3A3A)),
+      splashRadius: 20,
+    );
+  }
+}
 
-    final double bubbleSize =
-        stats.size.clamp(110.0, maxWidth * 0.7) as double;
+class _HeaderCell extends StatelessWidget {
+  const _HeaderCell(this.text, {this.width});
 
-    return SizedBox(
-      width: bubbleSize,
-      height: bubbleSize,
-      child: Stack(
-        clipBehavior: Clip.none,
+  final String text;
+  final double? width;
+
+  @override
+  Widget build(BuildContext context) {
+    final child = Text(
+      text,
+      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+            color: const Color(0xFF8A8A8A),
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.5,
+          ),
+    );
+    if (width == null) return child;
+    return SizedBox(width: width, child: child);
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: const Color(0xFFF3B51D),
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.9,
+            ),
+      ),
+    );
+  }
+}
+
+class _OpenBubbleTaskTile extends StatelessWidget {
+  const _OpenBubbleTaskTile({
+    required this.task,
+    required this.onToggle,
+    required this.onDelete,
+    required this.timeText,
+    required this.dayText,
+  });
+
+  final BubbleTaskItem task;
+  final VoidCallback onToggle;
+  final VoidCallback onDelete;
+  final String timeText;
+  final String dayText;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(8, 10, 8, 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          SizedBox(
+            width: 68,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  timeText,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: const Color(0xFFE04747),
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  dayText,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: const Color(0xFFB5B5B5),
+                      ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: const [
+                    _ReminderChip('5M'),
+                    SizedBox(width: 6),
+                    _ReminderChip('30M'),
+                    SizedBox(width: 6),
+                    _ReminderChip('1H'),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  task.title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: const Color(0xFF202020),
+                        fontWeight: FontWeight.w700,
+                        decoration:
+                            task.isDone ? TextDecoration.lineThrough : null,
+                      ),
+                ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: IconButton(
+                    onPressed: onDelete,
+                    icon: const Icon(Icons.more_vert, color: Color(0xFF9A9A9A)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
           GestureDetector(
-            onTap: () {
-              showModalBottomSheet<void>(
-                context: context,
-                isScrollControlled: true,
-                backgroundColor: Colors.transparent,
-                builder: (context) {
-                  return _BubbleDetailsSheet(
-                    category: category,
-                    color: color,
-                    tasks: tasks,
-                    onToggleTaskStatus: onToggleTaskStatus,
-                    onDeleteTask: (task) {
-                      onDeleteTask(task);
-                      Navigator.of(context).pop();
-                    },
-                    onDeleteCategory: () {
-                      onDeleteCategory(category);
-                      Navigator.of(context).pop();
-                    },
-                    onShare: () {
-                      final text = tasks.map((t) => t.text).join('\n');
-                      if (text.isNotEmpty) {
-                        Clipboard.setData(ClipboardData(text: text));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Текст задач скопирован в буфер'),
-                            behavior: SnackBarBehavior.floating,
+            onTap: onToggle,
+            child: Container(
+              width: 28,
+              height: 28,
+              margin: const EdgeInsets.only(top: 34),
+              decoration: BoxDecoration(
+                border: Border.all(color: const Color(0xFFA9A9A9), width: 2),
+                borderRadius: BorderRadius.circular(6),
+                color: task.isDone ? const Color(0xFF19C66D) : Colors.transparent,
+              ),
+              child: task.isDone
+                  ? const Icon(Icons.check, color: Colors.white, size: 18)
+                  : null,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReminderChip extends StatelessWidget {
+  const _ReminderChip(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFA300),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: Colors.black,
+              fontWeight: FontWeight.w800,
+            ),
+      ),
+    );
+  }
+}
+
+class _SimpleTab extends StatelessWidget {
+  const _SimpleTab({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Text(
+        '$title coming soon',
+        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: Colors.white70,
+            ),
+      ),
+    );
+  }
+}
+
+class _TalkPage extends StatefulWidget {
+  const _TalkPage();
+
+  @override
+  State<_TalkPage> createState() => _TalkPageState();
+}
+
+class _TalkPageState extends State<_TalkPage> {
+  final SpeechToText _speech = SpeechToText();
+  bool _isListening = false;
+  String _capturedText = '';
+
+  Future<void> _toggleVoiceInput() async {
+    HapticFeedback.mediumImpact();
+    if (_isListening) {
+      await _speech.stop();
+      setState(() => _isListening = false);
+      if (_capturedText.trim().isNotEmpty && mounted) {
+        context.read<AppState>().addTaskFromText(_capturedText);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Added by voice: $_capturedText')),
+        );
+      }
+      return;
+    }
+    final available = await _speech.initialize();
+    if (!available || !mounted) return;
+    setState(() {
+      _capturedText = '';
+      _isListening = true;
+    });
+    await _speech.listen(
+      onResult: (result) {
+        setState(() => _capturedText = result.recognizedWords);
+      },
+    );
+  }
+
+  Future<void> _openTaskInputDialog({required String title}) async {
+    final controller = TextEditingController();
+    final value = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'Enter task text',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || value == null || value.isEmpty) return;
+    context.read<AppState>().addTaskFromText(value);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Added: $value')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
+    return Container(
+      color: const Color(0xFFF2EEE7),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 12, 18, 0),
+            child: Row(
+              children: [
+                const Spacer(),
+                _LightCircleIcon(icon: Icons.search, onTap: () {}),
+                const SizedBox(width: 8),
+                _LightCircleIcon(
+                  icon: Icons.settings_rounded,
+                  onTap: () {
+                    showModalBottomSheet<void>(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.transparent,
+                      builder: (_) => const SettingsSheet(),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+            child: Row(
+              children: [
+                const _BrandMark(),
+                const SizedBox(width: 8),
+                Text(
+                  'ubblePlanner',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        color: const Color(0xFF1E1E1E),
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const Spacer(),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      'Done: ${state.doneCount}',
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            color: AppColors.done,
                           ),
-                        );
-                      }
-                    },
-                  );
-                },
-              );
-            },
+                    ),
+                    Text(
+                      'Active: ${state.activeCount}',
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            color: AppColors.active,
+                          ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 30),
+          Text(
+            'Ready for tasks',
+            style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                  color: const Color(0xFF201B1B),
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _isListening ? 'Listening... tap again to save' : 'Tap the button to talk',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: const Color(0xFF2F2727),
+                ),
+          ),
+          const SizedBox(height: 34),
+          GestureDetector(
+            onTap: _toggleVoiceInput,
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeOut,
-              width: bubbleSize,
-              height: bubbleSize,
+              duration: const Duration(milliseconds: 220),
+              width: 170,
+              height: 170,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    color.withOpacity(0.9),
-                    color.withOpacity(0.6),
-                    Colors.black.withOpacity(0.85),
+                    const Color(0xFFF2ECDD),
+                    const Color(0xFF6D6862),
                   ],
-                  center: const Alignment(-0.4, -0.6),
-                  radius: 1.1,
+                  center: const Alignment(0.0, -0.15),
+                ),
+                border: Border.all(
+                  color: _isListening
+                      ? const Color(0xFF6CA8FF)
+                      : const Color(0xFF4A89FF),
+                  width: 4,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: color.withOpacity(0.7),
-                    blurRadius: 40,
-                    spreadRadius: 2,
+                    color: Colors.black.withOpacity(0.32),
+                    blurRadius: 30,
+                    offset: const Offset(0, 18),
                   ),
                 ],
               ),
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _getCategoryTitle(category),
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${stats.openTaskCount} tasks',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Colors.white.withOpacity(0.8),
-                            ),
-                      ),
-                    ],
-                  ),
-                ),
+              child: Icon(
+                _isListening ? Icons.graphic_eq_rounded : Icons.mic_none_rounded,
+                size: 64,
+                color: const Color(0xFF2E2320),
               ),
             ),
           ),
-          Positioned(
-            top: 6,
-            right: 6,
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () async {
-                  final confirm = await showDialog<bool>(
-                    context: context,
-                    builder: (ctx) => AlertDialog(
-                      title: const Text('Удалить категорию?'),
-                      content: Text(
-                        'Все задачи в категории «${_getCategoryTitle(category)}» будут удалены.',
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(ctx, false),
-                          child: const Text('Отмена'),
-                        ),
-                        FilledButton(
-                          onPressed: () => Navigator.pop(ctx, true),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: Colors.red,
-                          ),
-                          child: const Text('Удалить'),
-                        ),
-                      ],
-                    ),
-                  );
-                  if (confirm == true) onDeleteCategory(category);
-                },
-                borderRadius: BorderRadius.circular(22),
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.12),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.15),
-                      width: 1,
-                    ),
-                  ),
-                  child: Icon(
-                    Icons.delete_outline_rounded,
-                    size: 18,
-                    color: Colors.white.withOpacity(0.85),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _BubbleDetailsSheet extends StatelessWidget {
-  const _BubbleDetailsSheet({
-    required this.category,
-    required this.color,
-    required this.tasks,
-    required this.onToggleTaskStatus,
-    required this.onDeleteTask,
-    required this.onDeleteCategory,
-    required this.onShare,
-  });
-
-  final String category;
-  final Color color;
-  final List<Task> tasks;
-  final void Function(Task task) onToggleTaskStatus;
-  final void Function(Task task) onDeleteTask;
-  final VoidCallback onDeleteCategory;
-  final VoidCallback onShare;
-
-  @override
-  Widget build(BuildContext context) {
-    final media = MediaQuery.of(context);
-    final sorted = [...tasks]
-      ..sort((a, b) {
-        final aDue = a.dueAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-        final bDue = b.dueAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-        return aDue.compareTo(bDue);
-      });
-
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 16,
-        right: 16,
-        bottom: media.viewInsets.bottom + 16,
-        top: 8,
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: Container(
-          color: AppColors.sheetBackground,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: RadialGradient(
-                          colors: [
-                            color,
-                            color.withOpacity(0.5),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _getCategoryTitle(category),
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w600),
-                        ),
-                        Text(
-                          '${tasks.length} tasks',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Colors.white.withOpacity(0.6),
-                              ),
-                        ),
-                      ],
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(Icons.share_outlined),
-                      tooltip: 'Поделиться (копировать в буфер)',
-                      onPressed: onShare,
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline_rounded),
-                      tooltip: 'Удалить все задачи категории',
-                      onPressed: () async {
-                        final confirm = await showDialog<bool>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text('Удалить категорию?'),
-                            content: Text(
-                              'Все задачи в категории «${_getCategoryTitle(category)}» будут удалены.',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx, false),
-                                child: const Text('Отмена'),
-                              ),
-                              FilledButton(
-                                onPressed: () => Navigator.pop(ctx, true),
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: Colors.red,
-                                ),
-                                child: const Text('Удалить'),
-                              ),
-                            ],
-                          ),
-                        );
-                        if (confirm == true) onDeleteCategory();
-                      },
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close_rounded),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1, color: AppColors.divider),
-              Flexible(
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                  itemCount: sorted.length,
-                  itemBuilder: (context, index) {
-                    final task = sorted[index];
-                    final isDone = task.status == TaskStatus.done;
-                    return InkWell(
-                      onTap: () => onToggleTaskStatus(task),
-                      borderRadius: BorderRadius.circular(16),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.02),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.08),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              isDone
-                                  ? Icons.check_circle
-                                  : Icons.radio_button_unchecked,
-                              size: 20,
-                              color: isDone
-                                  ? AppColors.done
-                                  : Colors.white.withOpacity(0.6),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    task.text,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.copyWith(
-                                          decoration: isDone
-                                              ? TextDecoration.lineThrough
-                                              : null,
-                                          color: isDone
-                                              ? Colors.white.withOpacity(0.5)
-                                              : Colors.white,
-                                        ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    _formatDue(task.dueAt),
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodySmall
-                                        ?.copyWith(
-                                          color:
-                                              Colors.white.withOpacity(0.5),
-                                        ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            IconButton(
-                              icon: Icon(
-                                Icons.delete_outline_rounded,
-                                size: 20,
-                                color: Colors.white.withOpacity(0.5),
-                              ),
-                              tooltip: 'Удалить задачу',
-                              onPressed: () async {
-                                final confirm = await showDialog<bool>(
-                                  context: context,
-                                  builder: (ctx) => AlertDialog(
-                                    title: const Text('Удалить задачу?'),
-                                    content: Text(
-                                      task.text.length > 50
-                                          ? '${task.text.substring(0, 50)}…'
-                                          : task.text,
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () =>
-                                            Navigator.pop(ctx, false),
-                                        child: const Text('Отмена'),
-                                      ),
-                                      FilledButton(
-                                        onPressed: () =>
-                                            Navigator.pop(ctx, true),
-                                        style: FilledButton.styleFrom(
-                                          backgroundColor: Colors.red,
-                                        ),
-                                        child: const Text('Удалить'),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                                if (confirm == true) {
-                                  onDeleteTask(task);
-                                }
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _formatDue(DateTime? due) {
-    if (due == null) return 'No deadline';
-    final now = DateTime.now();
-    final diff = due.difference(now);
-    final prefix = diff.isNegative ? 'Overdue · ' : 'Due · ';
-    final hours = due.hour.toString().padLeft(2, '0');
-    final minutes = due.minute.toString().padLeft(2, '0');
-    final date =
-        '${due.day.toString().padLeft(2, '0')}.${due.month.toString().padLeft(2, '0')}';
-    return '$prefix$date $hours:$minutes';
-  }
-}
-
-/// Вспомогательные плейсхолдеры для других вкладок (Talk/List/Share).
-class _TalkPlaceholder extends StatelessWidget {
-  const _TalkPlaceholder({
-    required this.doneCount,
-    required this.activeCount,
-  });
-
-  final int doneCount;
-  final int activeCount;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const Spacer(),
-        const _AppIcon(size: 60),
-        const SizedBox(height: 16),
-        Text(
-          'Ready for tasks',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Tap the button to talk (stub)',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Colors.white.withOpacity(0.6),
-              ),
-        ),
-        const SizedBox(height: 28),
-        Container(
-          width: 150,
-          height: 150,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: const RadialGradient(
-              colors: [
-                AppColors.appIconEnd,
-                AppColors.gradientBottom,
-              ],
-              center: Alignment.topLeft,
-              radius: 1.0,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.accentSecondaryBlue.withOpacity(0.6),
-                blurRadius: 35,
-                spreadRadius: 4,
-              ),
-            ],
-          ),
-          child: Icon(
-            Icons.mic_rounded,
-            size: 54,
-            color: Colors.white.withOpacity(0.95),
-          ),
-        ),
-        const Spacer(),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 32),
-          child: Text(
-            'Dones $doneCount · Actives $activeCount',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Colors.white.withOpacity(0.6),
-                ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ListPlaceholder extends StatelessWidget {
-  const _ListPlaceholder({required this.tasks});
-
-  final List<Task> tasks;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'List (coming soon)',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Here you will see all tasks as a flat list.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.white.withOpacity(0.6),
-                ),
-          ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: ListView.separated(
-              itemCount: tasks.length,
-              itemBuilder: (context, index) {
-                final task = tasks[index];
-                return ListTile(
-                  title: Text(task.text),
-                  subtitle: Text(task.category),
-                );
-              },
-              separatorBuilder: (_, __) => const Divider(
-                color: AppColors.divider,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SharePlaceholder extends StatelessWidget {
-  const _SharePlaceholder({required this.tasks});
-
-  final List<Task> tasks;
-
-  @override
-  Widget build(BuildContext context) {
-    final taskTexts = tasks.map((t) => t.text).where((s) => s.isNotEmpty);
-    final canCopy = taskTexts.isNotEmpty;
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.ios_share_rounded,
-              size: 40,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Поделиться',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              canCopy
-                  ? 'Скопировать текст всех задач в буфер обмена.'
-                  : 'Пока нет задач для копирования.',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.white.withOpacity(0.6),
-                  ),
-            ),
-            const SizedBox(height: 20),
-            FilledButton.icon(
-              onPressed: canCopy
-                  ? () {
-                      final text = taskTexts.join('\n');
-                      Clipboard.setData(ClipboardData(text: text));
+          const SizedBox(height: 36),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _TalkActionButton(
+                    icon: state.isSyncing ? Icons.sync : Icons.sync_rounded,
+                    label: state.isSyncing ? 'SYNCING' : 'SYNC HUB',
+                    onTap: () async {
+                      HapticFeedback.lightImpact();
+                      await context.read<AppState>().syncHub();
+                      if (!mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Текст задач скопирован в буфер обмена'),
-                          behavior: SnackBarBehavior.floating,
-                        ),
+                        const SnackBar(content: Text('Synced successfully')),
                       );
-                    }
-                  : null,
-              icon: const Icon(Icons.copy_rounded, size: 20),
-              label: const Text('Поделиться (копировать в буфер)'),
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _TalkActionButton(
+                    icon: Icons.camera_alt_outlined,
+                    label: 'SCAN',
+                    onTap: () => _openTaskInputDialog(title: 'Scan task text'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _TalkActionButton(
+                    icon: Icons.keyboard_alt_outlined,
+                    label: 'TYPE',
+                    onTap: () => _openTaskInputDialog(title: 'Type a task'),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
-/// Нижний таб-бар, стилизованный под скрины.
 class _BottomNavBar extends StatelessWidget {
   const _BottomNavBar({
     required this.currentIndex,
@@ -1133,21 +871,21 @@ class _BottomNavBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = [
-      _NavItem(icon: Icons.chat_bubble_outline, label: 'TALK'),
-      _NavItem(icon: Icons.grid_view_rounded, label: 'BUBBLES'),
-      _NavItem(icon: Icons.list_alt_rounded, label: 'LIST'),
-      _NavItem(icon: Icons.share_outlined, label: 'SHARE'),
+      const _NavItem(icon: Icons.chat_bubble_outline_rounded, label: 'TALK'),
+      const _NavItem(icon: Icons.grid_view_rounded, label: 'BUBBLES'),
+      const _NavItem(icon: Icons.list_alt_rounded, label: 'LIST'),
+      const _NavItem(icon: Icons.share_outlined, label: 'SHARE'),
     ];
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
       decoration: BoxDecoration(
-        color: AppColors.bg.withOpacity(0.95),
+        color: const Color(0xFF0B1018).withOpacity(0.92),
         boxShadow: const [
           BoxShadow(
             color: Colors.black54,
             blurRadius: 24,
-            offset: Offset(0, -6),
+            offset: Offset(0, -8),
           ),
         ],
       ),
@@ -1186,17 +924,16 @@ class _BottomNavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isActive
-        ? Theme.of(context).colorScheme.primary
-        : Colors.white.withOpacity(0.5);
+    final color =
+        isActive ? Theme.of(context).colorScheme.primary : Colors.white54;
 
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
-          color: isActive ? Colors.white.withOpacity(0.06) : Colors.transparent,
+          color: isActive ? Colors.white.withOpacity(0.08) : Colors.transparent,
           borderRadius: BorderRadius.circular(999),
         ),
         child: Column(
@@ -1209,7 +946,6 @@ class _BottomNavItem extends StatelessWidget {
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: color,
                     fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-                    letterSpacing: 0.8,
                   ),
             ),
           ],
@@ -1219,21 +955,20 @@ class _BottomNavItem extends StatelessWidget {
   }
 }
 
-/// Градиентный фон, близкий к скринам Bubbles.
 class _GradientBackground extends StatelessWidget {
   const _GradientBackground();
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
+          begin: Alignment.topRight,
+          end: Alignment.bottomLeft,
           colors: [
-            AppColors.gradientTop,
-            AppColors.gradientMid,
-            AppColors.gradientBottom,
+            const Color(0xFF12353B).withOpacity(0.75),
+            const Color(0xFF141A2A),
+            const Color(0xFF1E1417),
           ],
         ),
       ),
@@ -1241,51 +976,45 @@ class _GradientBackground extends StatelessWidget {
   }
 }
 
-class _AppIcon extends StatelessWidget {
-  const _AppIcon({this.size = 36});
+class _GlassIconButton extends StatelessWidget {
+  const _GlassIconButton({required this.icon, required this.onTap});
 
-  final double size;
+  final IconData icon;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: const LinearGradient(
-          colors: [
-            AppColors.accentSecondaryBlue,
-            AppColors.appIconStart,
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.accentSecondaryBlue.withOpacity(0.7),
-            blurRadius: 18,
+    return GestureDetector(
+      onTap: onTap,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(999),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white.withOpacity(0.18)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.32),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Icon(icon, size: 21, color: Colors.white.withOpacity(0.92)),
           ),
-        ],
-      ),
-      child: Center(
-        child: Text(
-          'B',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-              ),
         ),
       ),
     );
   }
 }
 
-class _CircleIconButton extends StatelessWidget {
-  const _CircleIconButton({
-    required this.icon,
-    required this.onTap,
-  });
+class _LightCircleIcon extends StatelessWidget {
+  const _LightCircleIcon({required this.icon, required this.onTap});
 
   final IconData icon;
   final VoidCallback onTap;
@@ -1295,66 +1024,93 @@ class _CircleIconButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 34,
-        height: 34,
+        width: 44,
+        height: 44,
         decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.5),
           shape: BoxShape.circle,
-          color: Colors.white.withOpacity(0.06),
-          border: Border.all(color: Colors.white.withOpacity(0.12)),
+          border: Border.all(color: Colors.black12),
         ),
-        child: Icon(
-          icon,
-          size: 18,
-          color: Colors.white.withOpacity(0.8),
+        child: Icon(icon, color: Colors.black45),
+      ),
+    );
+  }
+}
+
+class _TalkActionButton extends StatelessWidget {
+  const _TalkActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 92,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.45),
+          borderRadius: BorderRadius.circular(22),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: Colors.black45),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: Colors.black54,
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-// Группировка задач по категориям, как в React-версии.
-Map<String, List<Task>> _groupTasksByCategory(List<Task> tasks) {
-  final Map<String, List<Task>> result = {};
-  for (final task in tasks) {
-    result.putIfAbsent(task.category, () => []).add(task);
-  }
-  return result;
-}
+class _BrandMark extends StatelessWidget {
+  const _BrandMark();
 
-Color _getCategoryColor(String category) {
-  switch (category) {
-    case 'Покупки':
-      return AppColors.categoryShopping;
-    case 'Работа':
-      return AppColors.categoryWork;
-    case 'Дом':
-      return AppColors.categoryHome;
-    case 'Здоровье':
-      return AppColors.categoryHealth;
-    case 'Дети':
-      return AppColors.categoryKids;
-    case 'Финансы':
-      return AppColors.categoryFinance;
-    default:
-      return AppColors.categoryDefault;
-  }
-}
-
-String _getCategoryTitle(String category) {
-  switch (category) {
-    case 'Покупки':
-      return 'Shopping';
-    case 'Работа':
-      return 'Work';
-    case 'Дом':
-      return 'Home';
-    case 'Здоровье':
-      return 'Health';
-    case 'Дети':
-      return 'Kids';
-    case 'Финансы':
-      return 'Finance';
-    default:
-      return category;
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 58,
+      height: 58,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF98CCFF),
+            Color(0xFF3B79E8),
+          ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF3B79E8).withOpacity(0.5),
+            blurRadius: 16,
+          ),
+        ],
+      ),
+      child: Center(
+        child: Text(
+          'B',
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+              ),
+        ),
+      ),
+    );
   }
 }

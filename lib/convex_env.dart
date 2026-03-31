@@ -1,5 +1,12 @@
 /// Конфигурация URL для Convex через `--dart-define`.
 ///
+/// **Прод (Vercel / телефон в браузере):** собирайте с
+/// `--dart-define-from-file=config/dart_defines/prod.json`, иначе `deploymentUrl` пустой
+/// и облако не подключится.
+///
+/// В Convex Dashboard для Auth / HTTP при необходимости добавьте домен сайта
+/// (например `https://ваш-домен.vercel.app`) в разрешённые origin.
+///
 /// Поддерживаются 2 режима:
 /// - **Простой**: один URL
 ///   - `--dart-define=CONVEX_URL=https://....convex.cloud`

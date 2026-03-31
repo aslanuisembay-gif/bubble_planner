@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../app_state.dart';
+import '../translations.dart';
 
 /// Horizontal action bar (edit, repeat, schedule, reminder, share, delete) — matches list / sheet UX.
 ///
@@ -24,7 +25,8 @@ class TaskQuickActionsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final state = hostContext.read<AppState>();
+    final state = hostContext.watch<AppState>();
+    final lang = state.languageCode;
 
     Widget slot(IconData icon, String tooltip, VoidCallback onTap) {
       return Tooltip(
@@ -78,37 +80,37 @@ class TaskQuickActionsRow extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            slot(Icons.edit_outlined, 'Изменить', () {
+            slot(Icons.edit_outlined, tr('tooltipEdit', lang: lang), () {
               onBeforeAction();
               showEditTaskTitleDialog(hostContext, task);
             }),
             const SizedBox(width: 6),
-            slot(Icons.autorenew_rounded, 'Повтор', () {
+            slot(Icons.autorenew_rounded, tr('tooltipRepeat', lang: lang), () {
               onBeforeAction();
               state.toggleTaskRecurrencePreset(task.id);
             }),
             const SizedBox(width: 6),
-            slot(Icons.schedule_rounded, 'Дата и время', () {
+            slot(Icons.schedule_rounded, tr('tooltipSchedule', lang: lang), () {
               onBeforeAction();
               showScheduleChoiceSheet(hostContext, task.id);
             }),
             const SizedBox(width: 6),
-            slot(Icons.notifications_outlined, 'Напоминание', () {
+            slot(Icons.notifications_outlined, tr('tooltipReminder', lang: lang), () {
               onBeforeAction();
               pickTaskReminder(hostContext, task);
             }),
             const SizedBox(width: 6),
-            slot(Icons.ios_share_rounded, 'Поделиться', () {
+            slot(Icons.ios_share_rounded, tr('tooltipShareRow', lang: lang), () {
               onBeforeAction();
               final line =
                   '${state.formatDueLineCompact(task.dueAt)} — ${task.title}';
               Clipboard.setData(ClipboardData(text: line));
               ScaffoldMessenger.of(hostContext).showSnackBar(
-                const SnackBar(content: Text('Текст задачи скопирован')),
+                SnackBar(content: Text(tr('taskCopiedToast', lang: lang))),
               );
             }),
             const SizedBox(width: 6),
-            slot(Icons.delete_outline_rounded, 'Удалить', () {
+            slot(Icons.delete_outline_rounded, tr('tooltipDelete', lang: lang), () {
               onBeforeAction();
               state.deleteTask(task.id);
             }),
@@ -156,23 +158,24 @@ class _EditTaskTitleDialogState extends State<_EditTaskTitleDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final lang = context.watch<AppState>().languageCode;
     return AlertDialog(
       backgroundColor: const Color(0xFF1E1B24),
-      title: const Text('Задача', style: TextStyle(color: Colors.white)),
+      title: Text(tr('taskEditTitle', lang: lang), style: const TextStyle(color: Colors.white)),
       content: TextField(
         controller: _controller,
         style: const TextStyle(color: Colors.white),
         autofocus: true,
         decoration: InputDecoration(
-          hintText: 'Текст',
+          hintText: tr('editTaskHint', lang: lang),
           hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('cancel', lang: lang))),
         FilledButton(
           onPressed: () => Navigator.pop(context, _controller.text.trim()),
-          child: const Text('Сохранить'),
+          child: Text(tr('save', lang: lang)),
         ),
       ],
     );
@@ -246,13 +249,14 @@ Future<void> showScheduleChoiceSheet(BuildContext context, String taskId) async 
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
     builder: (ctx) {
+      final lang = ctx.watch<AppState>().languageCode;
       return SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
               leading: const Icon(Icons.calendar_today_outlined, color: Colors.white70),
-              title: const Text('Изменить дату', style: TextStyle(color: Colors.white)),
+              title: Text(tr('changeDateTitle', lang: lang), style: const TextStyle(color: Colors.white)),
               onTap: () {
                 Navigator.pop(ctx);
                 WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -262,7 +266,7 @@ Future<void> showScheduleChoiceSheet(BuildContext context, String taskId) async 
             ),
             ListTile(
               leading: const Icon(Icons.schedule_rounded, color: Colors.white70),
-              title: const Text('Изменить время', style: TextStyle(color: Colors.white)),
+              title: Text(tr('changeTimeTitle', lang: lang), style: const TextStyle(color: Colors.white)),
               onTap: () {
                 Navigator.pop(ctx);
                 WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -302,6 +306,8 @@ Future<void> pickTaskReminder(BuildContext context, BubbleTaskItem t) async {
   state.updateTaskReminder(t.id, at);
   if (!context.mounted) return;
   ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text('Напоминание: ${state.formatDueTime(at)}')),
+    SnackBar(
+      content: Text('${tr('reminderSet', lang: state.languageCode)} ${state.formatDueTime(at)}'),
+    ),
   );
 }

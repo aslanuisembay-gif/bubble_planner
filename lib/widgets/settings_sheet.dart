@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../app_state.dart';
+import '../translations.dart';
 import 'font_card.dart';
 import 'routine_card.dart';
 import 'toggle_tile.dart';
@@ -40,6 +41,7 @@ class SettingsSheet extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               _SegmentedTabs(
+                languageCode: state.languageCode,
                 activeTab: state.activeSettingsTab,
                 onChanged: (tab) {
                   HapticFeedback.selectionClick();
@@ -56,6 +58,7 @@ class SettingsSheet extends StatelessWidget {
                     SettingsTab.appearance => const _AppearanceTab(),
                     SettingsTab.routines => const _RoutinesTab(),
                     SettingsTab.language => const _LanguageTab(),
+                    SettingsTab.legal => const _LegalTab(),
                   },
                 ),
               ),
@@ -68,8 +71,13 @@ class SettingsSheet extends StatelessWidget {
 }
 
 class _SegmentedTabs extends StatelessWidget {
-  const _SegmentedTabs({required this.activeTab, required this.onChanged});
+  const _SegmentedTabs({
+    required this.languageCode,
+    required this.activeTab,
+    required this.onChanged,
+  });
 
+  final String languageCode;
   final SettingsTab activeTab;
   final ValueChanged<SettingsTab> onChanged;
 
@@ -83,9 +91,10 @@ class _SegmentedTabs extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _segmentItem('Appearance', SettingsTab.appearance),
-          _segmentItem('Routines', SettingsTab.routines),
-          _segmentItem('Language', SettingsTab.language),
+          _segmentItem(tr('settingsTabAppearance', lang: languageCode), SettingsTab.appearance),
+          _segmentItem(tr('settingsTabRoutines', lang: languageCode), SettingsTab.routines),
+          _segmentItem(tr('settingsTabLanguage', lang: languageCode), SettingsTab.language),
+          _segmentItem(tr('settingsTabLegal', lang: languageCode), SettingsTab.legal),
         ],
       ),
     );
@@ -99,7 +108,7 @@ class _SegmentedTabs extends StatelessWidget {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           curve: Curves.easeOut,
-          padding: const EdgeInsets.symmetric(vertical: 11),
+          padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 2),
           decoration: BoxDecoration(
             color: isActive ? const Color(0xFF4F89FF) : Colors.transparent,
             borderRadius: BorderRadius.circular(16),
@@ -112,12 +121,17 @@ class _SegmentedTabs extends StatelessWidget {
                   ]
                 : null,
           ),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.white.withOpacity(isActive ? 1 : 0.72),
-              fontWeight: FontWeight.w600,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              label,
+              maxLines: 1,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white.withOpacity(isActive ? 1 : 0.72),
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+              ),
             ),
           ),
         ),
@@ -132,6 +146,7 @@ class _AppearanceTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
+    final lang = state.languageCode;
     return ListView(
       key: const ValueKey('appearance'),
       children: [
@@ -139,8 +154,8 @@ class _AppearanceTab extends StatelessWidget {
           child: Column(
             children: [
               FontCard(
-                title: 'Default font',
-                subtitle: 'The quick brown fox jumps over the lazy dog (Abc)',
+                title: tr('fontDefaultTitle', lang: lang),
+                subtitle: tr('fontDefaultSubtitle', lang: lang),
                 titleStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
                 subtitleStyle: const TextStyle(fontSize: 14),
                 selected: state.fontChoice == AppFontChoice.systemDefault,
@@ -149,7 +164,7 @@ class _AppearanceTab extends StatelessWidget {
               const SizedBox(height: 12),
               FontCard(
                 title: 'Press Start 2P',
-                subtitle: 'THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG',
+                subtitle: tr('fontPressStartSubtitle', lang: lang),
                 titleStyle: GoogleFonts.pressStart2p(fontSize: 12),
                 subtitleStyle: GoogleFonts.pressStart2p(fontSize: 8),
                 selected: state.fontChoice == AppFontChoice.pressStart2p,
@@ -158,7 +173,7 @@ class _AppearanceTab extends StatelessWidget {
               const SizedBox(height: 12),
               FontCard(
                 title: 'Special Elite',
-                subtitle: 'The quick brown fox jumps over the lazy dog',
+                subtitle: tr('fontSpecialEliteSubtitle', lang: lang),
                 titleStyle: GoogleFonts.specialElite(fontSize: 20),
                 subtitleStyle: GoogleFonts.specialElite(fontSize: 14),
                 selected: state.fontChoice == AppFontChoice.specialElite,
@@ -167,7 +182,7 @@ class _AppearanceTab extends StatelessWidget {
               const SizedBox(height: 12),
               FontCard(
                 title: 'Cinzel',
-                subtitle: 'Elegant serif preview for premium look',
+                subtitle: tr('fontCinzelSubtitle', lang: lang),
                 titleStyle: GoogleFonts.cinzel(fontSize: 20, fontWeight: FontWeight.w600),
                 subtitleStyle: GoogleFonts.cinzel(fontSize: 14),
                 selected: state.fontChoice == AppFontChoice.cinzel,
@@ -179,7 +194,7 @@ class _AppearanceTab extends StatelessWidget {
         const SizedBox(height: 14),
         ToggleTile(
           icon: Icons.wb_sunny_outlined,
-          title: 'Enable Daily Routines',
+          title: tr('enableDailyRoutines', lang: lang),
           value: state.dailyRoutinesEnabled,
           onChanged: (v) {
             HapticFeedback.selectionClick();
@@ -189,9 +204,8 @@ class _AppearanceTab extends StatelessWidget {
         const SizedBox(height: 10),
         ToggleTile(
           icon: Icons.graphic_eq_rounded,
-          title: 'Voice Activation ("Bubble")',
-          subtitle:
-              'Experimental: app stays active to listen for the "bubble" wake word.',
+          title: tr('voiceActivationTitle', lang: lang),
+          subtitle: tr('voiceActivationSubtitle', lang: lang),
           value: state.voiceActivationEnabled,
           onChanged: (v) {
             HapticFeedback.selectionClick();
@@ -202,7 +216,7 @@ class _AppearanceTab extends StatelessWidget {
         FilledButton.icon(
           onPressed: () => HapticFeedback.mediumImpact(),
           icon: const Icon(Icons.logout_rounded, color: Color(0xFFBB2A2A)),
-          label: const Text('Logout', style: TextStyle(color: Color(0xFFBB2A2A))),
+          label: Text(tr('logout', lang: lang), style: const TextStyle(color: Color(0xFFBB2A2A))),
           style: FilledButton.styleFrom(
             backgroundColor: const Color(0xFFFFD8D8),
             foregroundColor: const Color(0xFFBB2A2A),
@@ -244,27 +258,165 @@ class _LanguageTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      key: const ValueKey('language'),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.06),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withOpacity(0.12)),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Language', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 8),
-          Text(
-            'English and Russian are available. Hook your localization state here.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.white.withOpacity(0.74),
-                ),
+    final state = context.watch<AppState>();
+    final lang = state.languageCode;
+    final bodyStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: Colors.white.withOpacity(0.74),
+        );
+
+    Widget tile(String code, String label) {
+      final selected = state.languageCode == code;
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Material(
+          color: selected ? const Color(0xFF4F89FF).withOpacity(0.35) : Colors.white.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(18),
+          child: InkWell(
+            onTap: () {
+              HapticFeedback.selectionClick();
+              context.read<AppState>().setLanguageCode(code);
+            },
+            borderRadius: BorderRadius.circular(18),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Row(
+                children: [
+                  Icon(
+                    selected ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded,
+                    color: selected ? const Color(0xFF93C5FD) : Colors.white54,
+                    size: 22,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ],
-      ),
+        ),
+      );
+    }
+
+    return ListView(
+      key: const ValueKey('language'),
+      padding: EdgeInsets.zero,
+      children: [
+        Text(tr('languageScreenTitle', lang: lang), style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 10),
+        Text(tr('languageScreenSubtitle', lang: lang), style: bodyStyle),
+        const SizedBox(height: 18),
+        tile('en', tr('languageEnglish', lang: lang)),
+        tile('ru', tr('languageRussian', lang: lang)),
+      ],
+    );
+  }
+}
+
+class _LegalTab extends StatelessWidget {
+  const _LegalTab();
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
+    final lang = state.languageCode;
+    final bodyStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: Colors.white.withOpacity(0.88),
+          height: 1.45,
+        );
+    final titleStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
+          color: Colors.white,
+          fontWeight: FontWeight.w700,
+        );
+
+    return ListView(
+      key: ValueKey('legal_$lang'),
+      padding: const EdgeInsets.only(bottom: 24),
+      children: [
+        Text(tr('legalScreenTitle', lang: lang), style: titleStyle),
+        const SizedBox(height: 14),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.06),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withOpacity(0.12)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(tr('legalPrivacyTitle', lang: lang), style: titleStyle),
+              const SizedBox(height: 10),
+              Text(tr('legalPrivacyBody', lang: lang).trim(), style: bodyStyle),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.06),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withOpacity(0.12)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(tr('legalConsentTitle', lang: lang), style: titleStyle),
+              const SizedBox(height: 10),
+              Text(tr('legalConsentBody', lang: lang).trim(), style: bodyStyle),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        if (state.legalConsentAccepted)
+          Row(
+            children: [
+              const Icon(Icons.check_circle_outline, color: Color(0xFF65DEA3), size: 22),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  tr('legalConsentSavedLine', lang: lang),
+                  style: bodyStyle?.copyWith(color: const Color(0xFF65DEA3)),
+                ),
+              ),
+            ],
+          )
+        else
+          FilledButton(
+            onPressed: () async {
+              HapticFeedback.mediumImpact();
+              await context.read<AppState>().acceptLegalConsent();
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(tr('legalConsentSnackbar', lang: lang)),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF4F89FF),
+              minimumSize: const Size(double.infinity, 52),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+            ),
+            child: Text(tr('legalAcceptButton', lang: lang)),
+          ),
+        const SizedBox(height: 12),
+        Text(
+          tr('legalNotice', lang: lang),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Colors.white.withOpacity(0.45),
+                fontStyle: FontStyle.italic,
+              ),
+        ),
+      ],
     );
   }
 }

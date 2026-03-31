@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../app_state.dart';
+import '../translations.dart';
 import '../widgets/settings_sheet.dart';
 import '../widgets/task_row_quick_actions.dart';
 
@@ -70,7 +71,7 @@ class _TasksListTabState extends State<TasksListTab> {
             children: [
               Expanded(
                 child: Text(
-                  'Tasks',
+                  tr('tasksTitle', lang: state.languageCode),
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                         color: Colors.white,
                         fontWeight: FontWeight.w800,
@@ -81,7 +82,7 @@ class _TasksListTabState extends State<TasksListTab> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    'Done: ${state.doneCount}',
+                    '${tr('done', lang: state.languageCode)}: ${state.doneCount}',
                     style: const TextStyle(
                       color: Color(0xFF22C55E),
                       fontWeight: FontWeight.w700,
@@ -89,7 +90,7 @@ class _TasksListTabState extends State<TasksListTab> {
                     ),
                   ),
                   Text(
-                    'Active: ${state.activeCount}',
+                    '${tr('pending', lang: state.languageCode)}: ${state.activeCount}',
                     style: const TextStyle(
                       color: Color(0xFFFBBF24),
                       fontWeight: FontWeight.w700,
@@ -109,7 +110,7 @@ class _TasksListTabState extends State<TasksListTab> {
                 final text = state.tasks.map((t) => t.title).join('\n');
                 Clipboard.setData(ClipboardData(text: text));
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('All tasks copied')),
+                  SnackBar(content: Text(tr('allTasksCopied', lang: state.languageCode))),
                 );
               }),
               _headerAction(Icons.delete_outline_rounded, () {
@@ -149,7 +150,7 @@ class _TasksListTabState extends State<TasksListTab> {
             onChanged: (v) => context.read<AppState>().setSearchQuery(v),
             style: const TextStyle(color: Colors.white),
             decoration: InputDecoration(
-              hintText: 'Search tasks or categories...',
+              hintText: tr('searchPlaceholder', lang: state.languageCode),
               hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.45)),
               prefixIcon: Icon(Icons.search, color: Colors.white.withValues(alpha: 0.5)),
               filled: true,
@@ -170,11 +171,14 @@ class _TasksListTabState extends State<TasksListTab> {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
             children: [
-              _chip(context, 'All', TaskListFilter.all, state.listFilter == TaskListFilter.all),
+              _chip(context, tr('filterAll', lang: state.languageCode), TaskListFilter.all,
+                  state.listFilter == TaskListFilter.all),
               const SizedBox(width: 8),
-              _chip(context, 'Active', TaskListFilter.active, state.listFilter == TaskListFilter.active),
+              _chip(context, tr('filterActive', lang: state.languageCode), TaskListFilter.active,
+                  state.listFilter == TaskListFilter.active),
               const SizedBox(width: 8),
-              _chip(context, 'Done', TaskListFilter.done, state.listFilter == TaskListFilter.done),
+              _chip(context, tr('filterDone', lang: state.languageCode), TaskListFilter.done,
+                  state.listFilter == TaskListFilter.done),
             ],
           ),
         ),
@@ -201,7 +205,7 @@ class _TasksListTabState extends State<TasksListTab> {
                         Padding(
                           padding: const EdgeInsets.only(left: 4, bottom: 6),
                           child: Text(
-                            'TODAY',
+                            tr('todaySection', lang: state.languageCode),
                             style: TextStyle(
                               color: _gold,
                               fontWeight: FontWeight.w800,
@@ -214,7 +218,10 @@ class _TasksListTabState extends State<TasksListTab> {
                         if (_bulkMode)
                           TextButton(
                             onPressed: () => state.selectAllVisible(todayTasks.map((e) => e.id)),
-                            child: const Text('SELECT ALL', style: TextStyle(color: _purple)),
+                            child: Text(
+                              tr('selectAll', lang: state.languageCode),
+                              style: const TextStyle(color: _purple),
+                            ),
                           ),
                       ],
                     ),
@@ -224,7 +231,7 @@ class _TasksListTabState extends State<TasksListTab> {
                     Padding(
                       padding: const EdgeInsets.fromLTRB(4, 16, 4, 6),
                       child: Text(
-                        'FOLLOWING DAYS',
+                        tr('followingDaysSection', lang: state.languageCode),
                         style: TextStyle(
                           color: _gold,
                           fontWeight: FontWeight.w800,
@@ -239,7 +246,7 @@ class _TasksListTabState extends State<TasksListTab> {
                     Padding(
                       padding: const EdgeInsets.all(32),
                       child: Text(
-                        'No tasks',
+                        tr('noTasks', lang: state.languageCode),
                         textAlign: TextAlign.center,
                         style: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
                       ),
@@ -264,7 +271,10 @@ class _TasksListTabState extends State<TasksListTab> {
                             Clipboard.setData(ClipboardData(text: txt));
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text('Share Selected (${state.selectedTaskIds.length})'),
+                                content: Text(
+                                  trFill('shareSelected', {'n': '${state.selectedTaskIds.length}'},
+                                      lang: state.languageCode),
+                                ),
                               ),
                             );
                           },
@@ -275,7 +285,8 @@ class _TasksListTabState extends State<TasksListTab> {
                           ),
                           icon: const Icon(Icons.ios_share_rounded, size: 20),
                           label: Text(
-                            'Share Selected (${state.selectedTaskIds.length})',
+                            trFill('shareSelected', {'n': '${state.selectedTaskIds.length}'},
+                                lang: state.languageCode),
                             style: const TextStyle(fontWeight: FontWeight.w700),
                           ),
                         ),
@@ -294,7 +305,7 @@ class _TasksListTabState extends State<TasksListTab> {
                             side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           ),
-                          child: const Text('Cancel Selection'),
+                          child: Text(tr('cancelSelection', lang: state.languageCode)),
                         ),
                       ),
                     ],

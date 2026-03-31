@@ -10,7 +10,9 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "convex:dev": "convex dev",
-    "convex:deploy": "convex deploy"
+    "convex:deploy": "convex deploy",
+    "build:web:prod": "flutter build web --release --dart-define-from-file=config/dart_defines/prod.json --base-href /",
+    "build:web:github-pages": "flutter build web --release --dart-define-from-file=config/dart_defines/prod.json --base-href /bubble_planner/"
   },
   "repository": {
     "type": "git",

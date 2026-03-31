@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../app_state.dart';
+import '../translations.dart';
 
 class ConfirmTaskSheet extends StatefulWidget {
   const ConfirmTaskSheet({super.key, required this.initialTitle});
@@ -47,6 +48,7 @@ class _ConfirmTaskSheetState extends State<ConfirmTaskSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final lang = context.watch<AppState>().languageCode;
     final bottom = MediaQuery.of(context).viewInsets.bottom;
     return Padding(
       padding: EdgeInsets.only(bottom: bottom),
@@ -63,7 +65,7 @@ class _ConfirmTaskSheetState extends State<ConfirmTaskSheet> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Confirm Task',
+              tr('confirmTaskTitle', lang: lang),
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     color: Colors.white,
@@ -72,7 +74,7 @@ class _ConfirmTaskSheetState extends State<ConfirmTaskSheet> {
             ),
             const SizedBox(height: 6),
             Text(
-              'TASK',
+              tr('taskLabelUpper', lang: lang),
               style: TextStyle(
                 color: _purple.withValues(alpha: 0.9),
                 fontWeight: FontWeight.w800,
@@ -97,11 +99,14 @@ class _ConfirmTaskSheetState extends State<ConfirmTaskSheet> {
             const SizedBox(height: 16),
             Row(
               children: [
-                Text('КОГДА', style: TextStyle(color: _purple, fontWeight: FontWeight.w700, fontSize: 12)),
+                Text(tr('whenLabel', lang: lang),
+                    style: TextStyle(color: _purple, fontWeight: FontWeight.w700, fontSize: 12)),
                 const Spacer(),
-                Text('HOUR', style: TextStyle(color: _purple, fontWeight: FontWeight.w700, fontSize: 12)),
+                Text(tr('hourLabel', lang: lang),
+                    style: TextStyle(color: _purple, fontWeight: FontWeight.w700, fontSize: 12)),
                 const SizedBox(width: 48),
-                Text('MIN', style: TextStyle(color: _purple, fontWeight: FontWeight.w700, fontSize: 12)),
+                Text(tr('minLabel', lang: lang),
+                    style: TextStyle(color: _purple, fontWeight: FontWeight.w700, fontSize: 12)),
               ],
             ),
             const SizedBox(height: 8),
@@ -131,7 +136,7 @@ class _ConfirmTaskSheetState extends State<ConfirmTaskSheet> {
                         childCount: 2,
                         builder: (_, i) => Center(
                           child: Text(
-                            i == 0 ? 'Today' : 'Tomorrow',
+                            i == 0 ? tr('today', lang: lang) : tr('tomorrow', lang: lang),
                             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                           ),
                         ),
@@ -195,7 +200,7 @@ class _ConfirmTaskSheetState extends State<ConfirmTaskSheet> {
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     ),
-                    child: const Text('Cancel'),
+                    child: Text(tr('cancel', lang: lang)),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -215,7 +220,7 @@ class _ConfirmTaskSheetState extends State<ConfirmTaskSheet> {
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     ),
-                    child: const Text('OK, Add Task', style: TextStyle(fontWeight: FontWeight.w700)),
+                    child: Text(tr('okAddTask', lang: lang), style: const TextStyle(fontWeight: FontWeight.w700)),
                   ),
                 ),
               ],

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:convex_flutter/convex_flutter.dart';
@@ -11,14 +12,22 @@ import 'package:speech_to_text/speech_to_text.dart';
 import 'app_state.dart';
 import 'convex_env.dart';
 import 'app_theme.dart';
+import 'translations.dart';
 import 'services/paper_scan.dart';
 import 'screens/login_screen.dart';
 import 'tabs/tasks_list_tab.dart';
 import 'widgets/bubble_widget.dart';
 import 'widgets/confirm_task_sheet.dart';
 import 'widgets/settings_sheet.dart';
+import 'widgets/pomodoro_sheet.dart';
 import 'widgets/sync_hub_sheet.dart';
 import 'widgets/task_row_quick_actions.dart';
+
+/// Сантиметры → логические px по короткой стороне экрана (~6.5 см типичная ширина контента в руке).
+double _talkScreenCm(BuildContext context, double cm) {
+  final s = MediaQuery.sizeOf(context).shortestSide;
+  return s * (cm / 6.5);
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -100,6 +109,7 @@ class _BubblePlannerAppState extends State<BubblePlannerApp>
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Bubble Planner',
+      locale: Locale(state.languageCode),
       theme: AppTheme.dark(state.fontChoice),
       home: state.isLoggedIn ? const HomeScreen() : const LoginScreen(),
     );
@@ -149,14 +159,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    'Done: ${state.doneCount}',
+                    '${tr('done', lang: state.languageCode)}: ${state.doneCount}',
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
                           color: const Color(0xFF22C55E),
                           fontWeight: FontWeight.w700,
                         ),
                   ),
                   Text(
-                    'Active: ${state.activeCount}',
+                    '${tr('pending', lang: state.languageCode)}: ${state.activeCount}',
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
                           color: const Color(0xFFFBBF24),
                           fontWeight: FontWeight.w700,
@@ -173,6 +183,7 @@ class _HomeScreenState extends State<HomeScreen> {
           HapticFeedback.selectionClick();
           setState(() => _currentIndex = index);
         },
+        onPomodoroTap: () => PomodoroHomeButton.open(context),
       ),
     );
   }
@@ -191,7 +202,9 @@ class _BubblesPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final categories = context.watch<AppState>().categories;
+    final state = context.watch<AppState>();
+    final categories = state.categories;
+    final lang = state.languageCode;
     final size = MediaQuery.of(context).size;
     return Column(
       children: [
@@ -200,7 +213,7 @@ class _BubblesPage extends StatelessWidget {
           child: Row(
             children: [
               Text(
-                'Bubbles',
+                tr('bubblesPageTitle', lang: lang),
                 style: Theme.of(context).textTheme.headlineLarge,
               ),
               const Spacer(),
@@ -315,7 +328,7 @@ class CategoryTasksScreen extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       Text(
-                        'DONE: ${state.doneCount}',
+                        '${tr('done', lang: state.languageCode).toUpperCase()}: ${state.doneCount}',
                         style: Theme.of(context).textTheme.labelLarge?.copyWith(
                               color: const Color(0xFF00E675),
                               fontWeight: FontWeight.w700,
@@ -323,7 +336,7 @@ class CategoryTasksScreen extends StatelessWidget {
                       ),
                       const SizedBox(width: 12),
                       Text(
-                        'ACTIVE: ${state.activeCount}',
+                        '${tr('pending', lang: state.languageCode).toUpperCase()}: ${state.activeCount}',
                         style: Theme.of(context).textTheme.labelLarge?.copyWith(
                               color: const Color(0xFFFFB300),
                               fontWeight: FontWeight.w700,
@@ -364,7 +377,9 @@ class CategoryTasksScreen extends StatelessWidget {
                                 icon: Icons.search,
                                 onTap: () {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Search opened')),
+                                    SnackBar(
+                                      content: Text(tr('searchOpened', lang: state.languageCode)),
+                                    ),
                                   );
                                 },
                               ),
@@ -374,7 +389,9 @@ class CategoryTasksScreen extends StatelessWidget {
                                   final text = allTasks.map((e) => e.title).join('\n');
                                   Clipboard.setData(ClipboardData(text: text));
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Tasks copied')),
+                                    SnackBar(
+                                      content: Text(tr('tasksCopied', lang: state.languageCode)),
+                                    ),
                                   );
                                 },
                               ),
@@ -398,10 +415,12 @@ class CategoryTasksScreen extends StatelessWidget {
                           padding: const EdgeInsets.fromLTRB(24, 10, 24, 10),
                           child: Row(
                             children: [
-                              _HeaderCell('DUE', width: 68),
+                              _HeaderCell(tr('headerDue', lang: state.languageCode), width: 68),
                               const SizedBox(width: 8),
-                              const Expanded(child: _HeaderCell('TASK DETAILS')),
-                              _HeaderCell('STAT', width: 40),
+                              Expanded(
+                                child: _HeaderCell(tr('headerTaskDetails', lang: state.languageCode)),
+                              ),
+                              _HeaderCell(tr('headerStat', lang: state.languageCode), width: 40),
                             ],
                           ),
                         ),
@@ -411,7 +430,7 @@ class CategoryTasksScreen extends StatelessWidget {
                             padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
                             children: [
                               if (todayTasks.isNotEmpty) ...[
-                                const _SectionLabel('TODAY'),
+                                _SectionLabel(tr('todaySection', lang: state.languageCode)),
                                 const SizedBox(height: 6),
                                 for (final task in todayTasks)
                                   _OpenBubbleTaskTile(
@@ -423,7 +442,7 @@ class CategoryTasksScreen extends StatelessWidget {
                                   ),
                               ],
                               if (followingTasks.isNotEmpty) ...[
-                                const _SectionLabel('FOLLOWING DAYS'),
+                                _SectionLabel(tr('followingDaysSection', lang: state.languageCode)),
                                 const SizedBox(height: 6),
                                 for (final task in followingTasks)
                                   _OpenBubbleTaskTile(
@@ -452,7 +471,7 @@ class CategoryTasksScreen extends StatelessWidget {
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Text(
-                                  'ENABLE DAILY ROUTINES',
+                                  tr('enableDailyRoutinesBanner', lang: state.languageCode),
                                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
                                         color: const Color(0xFFE2A221),
                                         fontWeight: FontWeight.w800,
@@ -484,17 +503,18 @@ class CategoryTasksScreen extends StatelessWidget {
     showDialog<void>(
       context: context,
       builder: (dialogContext) {
+        final lang = dialogContext.read<AppState>().languageCode;
         return AlertDialog(
-          title: const Text('Add task'),
+          title: Text(tr('addTask', lang: lang)),
           content: TextField(
             controller: controller,
             autofocus: true,
-            decoration: const InputDecoration(hintText: 'Task text'),
+            decoration: InputDecoration(hintText: tr('taskTextHint', lang: lang)),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
+              child: Text(tr('cancel', lang: lang)),
             ),
             FilledButton(
               onPressed: () {
@@ -504,7 +524,7 @@ class CategoryTasksScreen extends StatelessWidget {
                 }
                 Navigator.pop(dialogContext);
               },
-              child: const Text('Add'),
+              child: Text(tr('addButton', lang: lang)),
             ),
           ],
         );
@@ -795,7 +815,9 @@ class _TalkPageState extends State<_TalkPage> {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
+    final lang = state.languageCode;
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
@@ -824,186 +846,193 @@ class _TalkPageState extends State<_TalkPage> {
             ],
           ),
         ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const _BrandMark(),
-            Text.rich(
-              TextSpan(
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Column(
+              children: [
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const _BrandMark(),
+                    Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(
+                            text: 'ubble',
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 22,
+                                ),
+                          ),
+                          TextSpan(
+                            text: 'Planner',
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                  color: _purple,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 22,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  tr('readyForTasks', lang: lang),
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _isListening ? tr('listeningHint', lang: lang) : tr('tapToTalk', lang: lang),
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: Colors.white70,
+                      ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  tr('welcomeBackDemo', lang: lang),
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.white54,
+                      ),
+                ),
+                SizedBox(height: 24 + MediaQuery.paddingOf(context).bottom),
+              ],
+            ),
+          ),
+        ),
+        if (_typeMode)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+              ),
+              child: Row(
                 children: [
-                  TextSpan(
-                    text: 'ubble',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 22,
-                        ),
+                  Icon(Icons.keyboard_alt_outlined, color: Colors.white.withValues(alpha: 0.6)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _typeController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        hintText: tr('typeYourTaskHint', lang: lang),
+                        hintStyle: const TextStyle(color: Colors.white38),
+                        border: InputBorder.none,
+                      ),
+                      onSubmitted: (v) {
+                        if (v.trim().isNotEmpty) {
+                          context.read<AppState>().addTaskFromText(v);
+                          _typeController.clear();
+                        }
+                      },
+                    ),
                   ),
-                  TextSpan(
-                    text: 'Planner',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: _purple,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 22,
-                        ),
+                  IconButton(
+                    onPressed: () => _typeController.clear(),
+                    icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 20),
+                  ),
+                  Material(
+                    color: _purple,
+                    shape: const CircleBorder(),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: () {
+                        final v = _typeController.text.trim();
+                        if (v.isNotEmpty) {
+                          context.read<AppState>().addTaskFromText(v);
+                          _typeController.clear();
+                        }
+                      },
+                      child: const Padding(
+                        padding: EdgeInsets.all(10),
+                        child: Icon(Icons.send_rounded, color: Colors.white, size: 18),
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
-          ],
-        ),
-        const SizedBox(height: 28),
-        Text(
-          'Ready for tasks',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-              ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          _isListening ? 'Listening… tap again to confirm' : 'Tap the button to talk',
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Colors.white70,
-              ),
-        ),
-        const SizedBox(height: 28),
-        GestureDetector(
-          onTap: _toggleVoiceInput,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
-            width: 168,
-            height: 168,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.black.withValues(alpha: 0.45),
-              border: Border.all(
-                color: _isListening ? _purple : _purple,
-                width: 3,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: _purple.withValues(alpha: 0.45),
-                  blurRadius: 28,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-            child: Icon(
-              _isListening ? Icons.graphic_eq_rounded : Icons.mic_none_rounded,
-              size: 62,
-              color: Colors.white,
-            ),
           ),
-        ),
-        const SizedBox(height: 32),
+        // Микрофон: ~3 см от правого края, +18%; трапеции — полукругом вокруг (шаг ~2.5 см по дуге).
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 22),
-          child: Row(
-            children: [
-              Expanded(
-                child: _TalkDarkAction(
-                  icon: state.isSyncing ? Icons.sync : Icons.sync_rounded,
-                  label: state.isSyncing ? 'SYNCING' : 'SYNC HUB',
-                  selected: false,
-                  onTap: _openSyncHub,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _TalkDarkAction(
-                  icon: Icons.camera_alt_outlined,
-                  label: 'SCAN',
-                  selected: false,
-                  onTap: _scanPaperAndOpenConfirm,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _TalkDarkAction(
-                  icon: Icons.keyboard_alt_outlined,
-                  label: 'TYPE',
-                  selected: _typeMode,
-                  onTap: () => setState(() => _typeMode = !_typeMode),
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (_typeMode) ...[
-          const SizedBox(height: 20),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+          padding: EdgeInsets.fromLTRB(8, 0, 8, 6 + MediaQuery.paddingOf(context).bottom),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              const trapW = _TalkTrapezoidChip.w;
+              const trapH = _TalkTrapezoidChip.h;
+              final micHit = _TalkMicThumbButton.hitSize;
+              final marginRight = _talkScreenCm(context, 3.0);
+              final arcLen = _talkScreenCm(context, 2.5);
+              final radius = arcLen / (math.pi / 3);
+              const stackH = 340.0;
+              final w = constraints.maxWidth;
+              final cx = w - marginRight - micHit / 2;
+              final cy = stackH / 2;
+              const angles = [2 * math.pi / 3, math.pi, 4 * math.pi / 3];
+              return SizedBox(
+                height: stackH,
+                width: double.infinity,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    for (var i = 0; i < 3; i++)
+                      Positioned(
+                        left: (cx + math.cos(angles[i]) * radius - trapW / 2).clamp(4.0, w - trapW - 4),
+                        top: (cy - math.sin(angles[i]) * radius - trapH / 2).clamp(4.0, stackH - trapH - 4),
+                        child: _TalkTrapezoidChip(
+                          variant: i == 0
+                              ? _TalkTrapezoidVariant.syncTopRight
+                              : i == 1
+                                  ? _TalkTrapezoidVariant.scanLeft
+                                  : _TalkTrapezoidVariant.typeBottomRight,
+                          icon: i == 0
+                              ? (state.isSyncing ? Icons.sync : Icons.sync_rounded)
+                              : i == 1
+                                  ? Icons.camera_alt_outlined
+                                  : Icons.keyboard_alt_outlined,
+                          label: i == 0
+                              ? (state.isSyncing ? tr('syncing', lang: lang) : tr('syncHub', lang: lang))
+                              : i == 1
+                                  ? tr('scan', lang: lang)
+                                  : tr('type', lang: lang),
+                          selected: i == 2 && _typeMode,
+                          onTap: i == 0
+                              ? _openSyncHub
+                              : i == 1
+                                  ? _scanPaperAndOpenConfirm
+                                  : () {
+                                      HapticFeedback.selectionClick();
+                                      setState(() => _typeMode = !_typeMode);
+                                    },
+                        ),
+                      ),
+                    Positioned(
+                      right: marginRight,
+                      top: (stackH - micHit) / 2,
+                      child: _TalkMicThumbButton(
+                        isListening: _isListening,
+                        purple: _purple,
+                        onTap: _toggleVoiceInput,
+                      ),
                     ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.mic_none_rounded, color: Colors.white.withValues(alpha: 0.6)),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextField(
-                            controller: _typeController,
-                            style: const TextStyle(color: Colors.white),
-                            decoration: const InputDecoration(
-                              hintText: 'Type your task...',
-                              hintStyle: TextStyle(color: Colors.white38),
-                              border: InputBorder.none,
-                            ),
-                            onSubmitted: (v) {
-                              if (v.trim().isNotEmpty) {
-                                context.read<AppState>().addTaskFromText(v);
-                                _typeController.clear();
-                              }
-                            },
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: () => _typeController.clear(),
-                          icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 20),
-                        ),
-                        Material(
-                          color: _purple,
-                          shape: const CircleBorder(),
-                          child: InkWell(
-                            customBorder: const CircleBorder(),
-                            onTap: () {
-                              final v = _typeController.text.trim();
-                              if (v.isNotEmpty) {
-                                context.read<AppState>().addTaskFromText(v);
-                                _typeController.clear();
-                              }
-                            },
-                            child: const Padding(
-                              padding: EdgeInsets.all(10),
-                              child: Icon(Icons.send_rounded, color: Colors.white, size: 18),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-        ],
-        const Spacer(),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Text(
-            'Welcome back, demo!',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Colors.white54,
-                ),
+              );
+            },
           ),
         ),
       ],
@@ -1011,14 +1040,58 @@ class _TalkPageState extends State<_TalkPage> {
   }
 }
 
-class _TalkDarkAction extends StatelessWidget {
-  const _TalkDarkAction({
+enum _TalkTrapezoidVariant { syncTopRight, scanLeft, typeBottomRight }
+
+class _TalkTrapezoidClipper extends CustomClipper<Path> {
+  _TalkTrapezoidClipper(this.variant);
+
+  final _TalkTrapezoidVariant variant;
+
+  @override
+  Path getClip(Size size) {
+    final w = size.width;
+    final h = size.height;
+    final t = h * 0.22;
+    switch (variant) {
+      case _TalkTrapezoidVariant.syncTopRight:
+        return Path()
+          ..moveTo(t, 0)
+          ..lineTo(w, 0)
+          ..lineTo(w - t * 0.4, h)
+          ..lineTo(0, h - t * 0.5)
+          ..close();
+      case _TalkTrapezoidVariant.scanLeft:
+        return Path()
+          ..moveTo(0, t * 0.4)
+          ..lineTo(w - t, 0)
+          ..lineTo(w, h)
+          ..lineTo(t * 0.3, h)
+          ..close();
+      case _TalkTrapezoidVariant.typeBottomRight:
+        return Path()
+          ..moveTo(t, 0)
+          ..lineTo(w, t * 0.35)
+          ..lineTo(w - t * 0.2, h)
+          ..lineTo(0, h - t * 0.35)
+          ..close();
+    }
+  }
+
+  @override
+  bool shouldReclip(covariant _TalkTrapezoidClipper oldClipper) => oldClipper.variant != variant;
+}
+
+/// Трапециевидная кнопка как на эскизе (ориентация к центральному кругу).
+class _TalkTrapezoidChip extends StatelessWidget {
+  const _TalkTrapezoidChip({
+    required this.variant,
     required this.icon,
     required this.label,
     required this.selected,
     required this.onTap,
   });
 
+  final _TalkTrapezoidVariant variant;
   final IconData icon;
   final String label;
   final bool selected;
@@ -1026,37 +1099,108 @@ class _TalkDarkAction extends StatelessWidget {
 
   static const _purple = Color(0xFF8B5CF6);
 
+  static const double w = 118;
+  static const double h = 52;
+
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        height: 88,
-        decoration: BoxDecoration(
-          color: selected ? _purple.withValues(alpha: 0.35) : Colors.white.withValues(alpha: 0.06),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: selected ? _purple : Colors.white.withValues(alpha: 0.12),
-            width: selected ? 2 : 1,
-          ),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: Colors.white, size: 24),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-                fontSize: 11,
-                letterSpacing: 0.3,
+    return Material(
+      color: Colors.transparent,
+      child: ClipPath(
+        clipper: _TalkTrapezoidClipper(variant),
+        child: Material(
+          color: selected ? _purple.withValues(alpha: 0.38) : Colors.white.withValues(alpha: 0.08),
+          child: InkWell(
+            onTap: onTap,
+            child: SizedBox(
+              width: w,
+              height: h,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(icon, color: Colors.white, size: 20),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 10.5,
+                          letterSpacing: 0.15,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Крупный микрофон: +18% к базовым 104/112 dp; зона нажатия — круг.
+class _TalkMicThumbButton extends StatelessWidget {
+  const _TalkMicThumbButton({
+    required this.isListening,
+    required this.purple,
+    required this.onTap,
+  });
+
+  final bool isListening;
+  final Color purple;
+  final VoidCallback onTap;
+
+  /// Базовые 104×112, +18%.
+  static const double visualSize = 122.72;
+  static const double hitSize = 132.16;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Microphone',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: SizedBox(
+            width: hitSize,
+            height: hitSize,
+            child: Center(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                width: visualSize,
+                height: visualSize,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.black.withValues(alpha: 0.45),
+                  border: Border.all(color: purple, width: 3.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: purple.withValues(alpha: 0.5),
+                      blurRadius: 26,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  isListening ? Icons.graphic_eq_rounded : Icons.mic_none_rounded,
+                  size: 64,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -1067,17 +1211,20 @@ class _BottomNavBar extends StatelessWidget {
   const _BottomNavBar({
     required this.currentIndex,
     required this.onChanged,
+    required this.onPomodoroTap,
   });
 
   final int currentIndex;
   final ValueChanged<int> onChanged;
+  final VoidCallback onPomodoroTap;
 
   @override
   Widget build(BuildContext context) {
+    final lang = context.watch<AppState>().languageCode;
     final items = [
-      const _NavItem(icon: Icons.chat_bubble_outline_rounded, label: 'TALK'),
-      const _NavItem(icon: Icons.grid_view_rounded, label: 'BUBBLES'),
-      const _NavItem(icon: Icons.list_alt_rounded, label: 'LIST'),
+      _NavItem(icon: Icons.chat_bubble_outline_rounded, label: tr('navTalk', lang: lang)),
+      _NavItem(icon: Icons.grid_view_rounded, label: tr('navBubbles', lang: lang)),
+      _NavItem(icon: Icons.list_alt_rounded, label: tr('navList', lang: lang)),
     ];
 
     return Container(
@@ -1093,22 +1240,81 @@ class _BottomNavBar extends StatelessWidget {
         ],
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          for (var i = 0; i < items.length; i++)
-            _BottomNavItem(
-              item: items[i],
-              isActive: i == currentIndex,
-              onTap: () => onChanged(i),
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                for (var i = 0; i < items.length; i++)
+                  _BottomNavItem(
+                    item: items[i],
+                    isActive: i == currentIndex,
+                    onTap: () => onChanged(i),
+                  ),
+              ],
             ),
+          ),
+          const SizedBox(width: 8),
+          _FooterPomodoroButton(
+            label: tr('pomodoroFooterLabel', lang: lang),
+            onTap: onPomodoroTap,
+          ),
         ],
       ),
     );
   }
 }
 
+class _FooterPomodoroButton extends StatelessWidget {
+  const _FooterPomodoroButton({
+    required this.label,
+    required this.onTap,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          onTap();
+        },
+        borderRadius: BorderRadius.circular(999),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            color: const Color(0xFFD83A35).withValues(alpha: 0.22),
+            border: Border.all(color: const Color(0xFFE35A52)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const PomodoroTomatoIcon(size: 18),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _NavItem {
-  const _NavItem({required this.icon, required this.label});
+  _NavItem({required this.icon, required this.label});
 
   final IconData icon;
   final String label;

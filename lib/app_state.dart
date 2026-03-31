@@ -12,13 +12,14 @@ import 'convex_auth_session.dart';
 import 'local_tasks_sync.dart';
 import 'convex_env.dart';
 import 'task_parser.dart';
+import 'translations.dart' as app_tr;
 
 /// Sentinel for [BubbleTaskItem.copyWith] when `null` should mean "clear field".
 const Object _kTaskCopyUnset = Object();
 
 enum AppFontChoice { systemDefault, pressStart2p, specialElite, cinzel }
 
-enum SettingsTab { appearance, routines, language }
+enum SettingsTab { appearance, routines, language, legal }
 
 enum TaskListFilter { all, active, done }
 
@@ -161,6 +162,8 @@ class AppState extends ChangeNotifier {
   AppState() {
     _recomputeCategoryCounts();
     unawaited(_bootstrapSession());
+    unawaited(_loadLegalConsent());
+    unawaited(_loadLanguage());
   }
 
   Future<void> _bootstrapSession() async {
@@ -228,6 +231,11 @@ class AppState extends ChangeNotifier {
 
   static const String _kPrefsLocalTasks = 'bubble_planner_local_tasks_v1';
   static const String _kPrefsLocalIdSeed = 'bubble_planner_local_id_seed_v1';
+  static const String _kPrefsLegalConsent = 'bubble_planner_legal_consent_v1';
+  static const String _kPrefsLanguage = 'bubble_planner_language_v1';
+
+  bool _legalConsentAccepted = false;
+  String _languageCode = 'ru';
 
   final List<BubbleCategory> _categories = [
     const BubbleCategory(
@@ -299,6 +307,9 @@ class AppState extends ChangeNotifier {
   bool get dailyRoutinesEnabled => _dailyRoutinesEnabled;
   bool get voiceActivationEnabled => _voiceActivationEnabled;
   SettingsTab get activeSettingsTab => _activeSettingsTab;
+  bool get legalConsentAccepted => _legalConsentAccepted;
+  /// Код языка интерфейса: `en` или `ru`.
+  String get languageCode => _languageCode;
   bool get isSyncing => _isSyncing;
   DateTime? get lastSyncedAt => _lastSyncedAt;
   List<BubbleCategory> get categories => _categories;
@@ -696,6 +707,58 @@ class AppState extends ChangeNotifier {
   void setActiveSettingsTab(SettingsTab tab) {
     _activeSettingsTab = tab;
     notifyListeners();
+  }
+
+  Future<void> _loadLanguage() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      final saved = p.getString(_kPrefsLanguage);
+      if (saved == 'en') {
+        _languageCode = 'en';
+      } else if (saved == 'ru') {
+        _languageCode = 'ru';
+      }
+      app_tr.currentLanguageCode = _languageCode;
+      notifyListeners();
+    } catch (e, st) {
+      debugPrint('_loadLanguage: $e\n$st');
+    }
+  }
+
+  Future<void> setLanguageCode(String code) async {
+    if (code != 'en' && code != 'ru') return;
+    if (_languageCode == code) return;
+    _languageCode = code;
+    app_tr.currentLanguageCode = code;
+    notifyListeners();
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.setString(_kPrefsLanguage, code);
+    } catch (e, st) {
+      debugPrint('setLanguageCode: $e\n$st');
+    }
+  }
+
+  Future<void> _loadLegalConsent() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      _legalConsentAccepted = p.getBool(_kPrefsLegalConsent) ?? false;
+      notifyListeners();
+    } catch (e, st) {
+      debugPrint('_loadLegalConsent: $e\n$st');
+    }
+  }
+
+  /// Фиксация согласия с текстом на вкладке «Право и данные».
+  Future<void> acceptLegalConsent() async {
+    _legalConsentAccepted = true;
+    notifyListeners();
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.setBool(_kPrefsLegalConsent, true);
+    } catch (e, st) {
+      debugPrint('acceptLegalConsent: $e\n$st');
+    }
   }
 
   void toggleDailyRoutines(bool value) {

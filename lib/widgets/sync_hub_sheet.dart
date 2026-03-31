@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../app_state.dart';
+import '../translations.dart';
 
 class SyncHubSheet extends StatefulWidget {
   const SyncHubSheet({super.key});
@@ -17,6 +18,7 @@ class _SyncHubSheetState extends State<SyncHubSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final lang = context.watch<AppState>().languageCode;
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 18),
       padding: const EdgeInsets.fromLTRB(18, 14, 18, 20),
@@ -25,11 +27,11 @@ class _SyncHubSheetState extends State<SyncHubSheet> {
         borderRadius: BorderRadius.circular(26),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
-      child: _step == 0 ? _buildIntro(context) : _buildServices(context),
+      child: _step == 0 ? _buildIntro(context, lang) : _buildServices(context, lang),
     );
   }
 
-  Widget _buildIntro(BuildContext context) {
+  Widget _buildIntro(BuildContext context, String lang) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -45,9 +47,9 @@ class _SyncHubSheetState extends State<SyncHubSheet> {
               child: const Icon(Icons.sync_rounded, color: Colors.white, size: 22),
             ),
             const SizedBox(width: 12),
-            const Text(
-              'Sync Hub',
-              style: TextStyle(
+            Text(
+              tr('syncHubTitle', lang: lang),
+              style: const TextStyle(
                 color: Colors.white,
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
@@ -72,7 +74,7 @@ class _SyncHubSheetState extends State<SyncHubSheet> {
         ),
         const SizedBox(height: 20),
         Text(
-          'AI will analyze your accounts to suggest new tasks automatically.',
+          tr('syncHubIntro', lang: lang),
           textAlign: TextAlign.center,
           style: TextStyle(
             color: Colors.white.withValues(alpha: 0.88),
@@ -91,14 +93,14 @@ class _SyncHubSheetState extends State<SyncHubSheet> {
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             ),
-            child: const Text('Continue', style: TextStyle(fontWeight: FontWeight.w700)),
+            child: Text(tr('syncContinue', lang: lang), style: const TextStyle(fontWeight: FontWeight.w700)),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildServices(BuildContext context) {
+  Widget _buildServices(BuildContext context, String lang) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -114,9 +116,9 @@ class _SyncHubSheetState extends State<SyncHubSheet> {
               child: const Icon(Icons.sync_rounded, color: Colors.white, size: 22),
             ),
             const SizedBox(width: 12),
-            const Text(
-              'Sync Hub',
-              style: TextStyle(
+            Text(
+              tr('syncHubTitle', lang: lang),
+              style: const TextStyle(
                 color: Colors.white,
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
@@ -133,24 +135,24 @@ class _SyncHubSheetState extends State<SyncHubSheet> {
         _serviceCard(
           icon: Icons.mail_outline_rounded,
           iconBg: const Color(0xFFE94235),
-          title: 'Gmail',
-          subtitle: 'Analyze recent task-related emails',
+          title: tr('syncGmailTitle', lang: lang),
+          subtitle: tr('syncGmailSubtitle', lang: lang),
           badge: '+2',
         ),
         const SizedBox(height: 10),
         _serviceCard(
           icon: Icons.calendar_today_rounded,
           iconBg: const Color(0xFF4285F4),
-          title: 'Google Calendar',
-          subtitle: 'Fetch events for the next 7 days',
+          title: tr('syncCalTitle', lang: lang),
+          subtitle: tr('syncCalSubtitle', lang: lang),
           badge: '+1',
         ),
         const SizedBox(height: 10),
         _serviceCard(
           icon: Icons.note_alt_outlined,
           iconBg: const Color(0xFFFFCC33),
-          title: 'Apple Notes',
-          subtitle: 'Extract tasks from shared notes',
+          title: tr('syncNotesTitle', lang: lang),
+          subtitle: tr('syncNotesSubtitle', lang: lang),
           badge: '+1',
         ),
         const SizedBox(height: 14),
@@ -170,7 +172,7 @@ class _SyncHubSheetState extends State<SyncHubSheet> {
                   const Icon(Icons.auto_awesome_rounded, color: Color(0xFF34D399), size: 20),
                   const SizedBox(width: 8),
                   Text(
-                    'AI Found 4 Tasks',
+                    tr('syncFoundTasks', lang: lang),
                     style: TextStyle(
                       color: const Color(0xFF6EE7B7),
                       fontWeight: FontWeight.w800,
@@ -181,7 +183,7 @@ class _SyncHubSheetState extends State<SyncHubSheet> {
               ),
               const SizedBox(height: 8),
               Text(
-                'These tasks were extracted and prioritized based on your habits.',
+                tr('syncFoundSubtitle', lang: lang),
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.72),
                   fontSize: 13,
@@ -200,7 +202,7 @@ class _SyncHubSheetState extends State<SyncHubSheet> {
               context.read<AppState>().applySyncHubResults();
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('4 tasks added from Sync Hub')),
+                SnackBar(content: Text(tr('syncTasksAddedSnack', lang: lang))),
               );
             },
             style: FilledButton.styleFrom(
@@ -208,7 +210,7 @@ class _SyncHubSheetState extends State<SyncHubSheet> {
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             ),
-            child: const Text('Add to planner', style: TextStyle(fontWeight: FontWeight.w700)),
+            child: Text(tr('syncAddToPlanner', lang: lang), style: const TextStyle(fontWeight: FontWeight.w700)),
           ),
         ),
       ],

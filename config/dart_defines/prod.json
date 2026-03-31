@@ -1,0 +1,4 @@
+{
+  "ENV": "prod",
+  "CONVEX_URL_PROD": "https://optimistic-parrot-295.convex.cloud"
+}

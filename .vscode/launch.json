@@ -1,0 +1,25 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Flutter Web (Convex Dev)",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "chrome",
+      "args": [
+        "--web-port=8080",
+        "--dart-define-from-file=config/dart_defines/dev.json"
+      ]
+    },
+    {
+      "name": "Flutter Web (Convex Prod)",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "chrome",
+      "args": [
+        "--web-port=8080",
+        "--dart-define-from-file=config/dart_defines/prod.json"
+      ]
+    }
+  ]
+}

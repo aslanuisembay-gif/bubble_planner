@@ -1,24 +1,98 @@
+import 'dart:async';
 import 'dart:ui';
 
+import 'package:convex_flutter/convex_flutter.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
 import 'app_state.dart';
+import 'convex_env.dart';
 import 'app_theme.dart';
+import 'services/paper_scan.dart';
+import 'screens/login_screen.dart';
+import 'tabs/tasks_list_tab.dart';
 import 'widgets/bubble_widget.dart';
+import 'widgets/confirm_task_sheet.dart';
 import 'widgets/settings_sheet.dart';
+import 'widgets/sync_hub_sheet.dart';
+import 'widgets/task_row_quick_actions.dart';
 
-void main() => runApp(
-      ChangeNotifierProvider(
-        create: (_) => AppState(),
-        child: const BubblePlannerApp(),
-      ),
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  if (kIsWeb) {
+    debugPrint(
+      'Bubble Planner web: для сохранения demo-задач после обновления страницы '
+      'запускайте с фиксированным портом, например: '
+      'flutter run -d chrome --web-port=8080 --dart-define-from-file=config/dart_defines/dev.json '
+      '(в VS Code уже задано в .vscode/launch.json).',
     );
+  }
+  if (ConvexEnv.isConfigured) {
+    try {
+      debugPrint('Convex ENV=${ConvexEnv.env} URL=${ConvexEnv.deploymentUrl}');
+      await ConvexClient.initialize(
+        ConvexConfig(
+          deploymentUrl: ConvexEnv.deploymentUrl,
+          clientId: 'bubble-planner',
+          healthCheckQuery: 'health:ping',
+        ),
+      );
+      ConvexEnv.backendReady = true;
+    } catch (e, st) {
+      debugPrint('ConvexClient.initialize failed: $e\n$st');
+      ConvexEnv.backendReady = false;
+    }
+  }
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => AppState(),
+      child: const BubblePlannerApp(),
+    ),
+  );
+}
 
-class BubblePlannerApp extends StatelessWidget {
+class BubblePlannerApp extends StatefulWidget {
   const BubblePlannerApp({super.key});
+
+  @override
+  State<BubblePlannerApp> createState() => _BubblePlannerAppState();
+}
+
+class _BubblePlannerAppState extends State<BubblePlannerApp>
+    with WidgetsBindingObserver {
+  AppState? _appState;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _appState ??= context.read<AppState>();
+  }
+
+  @override
+  void dispose() {
+    unawaited(_appState?.persistLocalTasksNow());
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      unawaited(_appState?.persistLocalTasksNow());
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +101,7 @@ class BubblePlannerApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Bubble Planner',
       theme: AppTheme.dark(state.fontChoice),
-      home: const HomeScreen(),
+      home: state.isLoggedIn ? const HomeScreen() : const LoginScreen(),
     );
   }
 }
@@ -40,20 +114,20 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _currentIndex = 1;
+  int _currentIndex = 0;
   Offset _parallax = Offset.zero;
 
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     final pages = <Widget>[
-      const _TalkPage(),
+      _TalkPage(onSearchTap: () => setState(() => _currentIndex = 2)),
       _BubblesPage(
         parallax: _parallax,
         onParallax: (value) => setState(() => _parallax = value),
+        onSearchTap: () => setState(() => _currentIndex = 2),
       ),
-      const _SimpleTab(title: 'List'),
-      const _SimpleTab(title: 'Share'),
+      const TasksListTab(),
     ];
 
     return Scaffold(
@@ -67,9 +141,9 @@ class _HomeScreenState extends State<HomeScreen> {
               child: pages[_currentIndex],
             ),
           ),
-          if (_currentIndex == 1)
+          if (_currentIndex != 2)
             Positioned(
-              top: 68,
+              top: 10,
               right: 20,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
@@ -77,13 +151,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   Text(
                     'Done: ${state.doneCount}',
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: AppColors.done,
+                          color: const Color(0xFF22C55E),
+                          fontWeight: FontWeight.w700,
                         ),
                   ),
                   Text(
                     'Active: ${state.activeCount}',
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: AppColors.active,
+                          color: const Color(0xFFFBBF24),
+                          fontWeight: FontWeight.w700,
                         ),
                   ),
                 ],
@@ -103,10 +179,15 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class _BubblesPage extends StatelessWidget {
-  const _BubblesPage({required this.parallax, required this.onParallax});
+  const _BubblesPage({
+    required this.parallax,
+    required this.onParallax,
+    required this.onSearchTap,
+  });
 
   final Offset parallax;
   final ValueChanged<Offset> onParallax;
+  final VoidCallback onSearchTap;
 
   @override
   Widget build(BuildContext context) {
@@ -123,7 +204,13 @@ class _BubblesPage extends StatelessWidget {
                 style: Theme.of(context).textTheme.headlineLarge,
               ),
               const Spacer(),
-              _GlassIconButton(icon: Icons.search_rounded, onTap: () {}),
+              _GlassIconButton(
+                icon: Icons.search_rounded,
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  onSearchTap();
+                },
+              ),
               const SizedBox(width: 10),
               _GlassIconButton(
                 icon: Icons.settings_rounded,
@@ -331,8 +418,6 @@ class CategoryTasksScreen extends StatelessWidget {
                                     task: task,
                                     onToggle: () =>
                                         context.read<AppState>().toggleTaskDone(task.id),
-                                    onDelete: () =>
-                                        context.read<AppState>().deleteTask(task.id),
                                     timeText: state.formatDueTime(task.dueAt),
                                     dayText: state.formatDueDay(task.dueAt),
                                   ),
@@ -345,8 +430,6 @@ class CategoryTasksScreen extends StatelessWidget {
                                     task: task,
                                     onToggle: () =>
                                         context.read<AppState>().toggleTaskDone(task.id),
-                                    onDelete: () =>
-                                        context.read<AppState>().deleteTask(task.id),
                                     timeText: state.formatDueTime(task.dueAt),
                                     dayText: state.formatDueDay(task.dueAt),
                                   ),
@@ -492,14 +575,12 @@ class _OpenBubbleTaskTile extends StatelessWidget {
   const _OpenBubbleTaskTile({
     required this.task,
     required this.onToggle,
-    required this.onDelete,
     required this.timeText,
     required this.dayText,
   });
 
   final BubbleTaskItem task;
   final VoidCallback onToggle;
-  final VoidCallback onDelete;
   final String timeText;
   final String dayText;
 
@@ -559,7 +640,29 @@ class _OpenBubbleTaskTile extends StatelessWidget {
                 Align(
                   alignment: Alignment.centerRight,
                   child: IconButton(
-                    onPressed: onDelete,
+                    onPressed: () {
+                      showModalBottomSheet<void>(
+                        context: context,
+                        backgroundColor: Colors.transparent,
+                        builder: (ctx) => Padding(
+                          padding: EdgeInsets.only(
+                            left: 12,
+                            right: 12,
+                            bottom: MediaQuery.paddingOf(ctx).bottom + 12,
+                          ),
+                          child: Center(
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: TaskQuickActionsRow(
+                                task: task,
+                                hostContext: context,
+                                onBeforeAction: () => Navigator.pop(ctx),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                     icon: const Icon(Icons.more_vert, color: Color(0xFF9A9A9A)),
                   ),
                 ),
@@ -613,35 +716,48 @@ class _ReminderChip extends StatelessWidget {
   }
 }
 
-class _SimpleTab extends StatelessWidget {
-  const _SimpleTab({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        '$title coming soon',
-        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: Colors.white70,
-            ),
-      ),
-    );
-  }
-}
-
 class _TalkPage extends StatefulWidget {
-  const _TalkPage();
+  const _TalkPage({required this.onSearchTap});
+
+  final VoidCallback onSearchTap;
 
   @override
   State<_TalkPage> createState() => _TalkPageState();
 }
 
 class _TalkPageState extends State<_TalkPage> {
+  static const _purple = Color(0xFF8B5CF6);
+
   final SpeechToText _speech = SpeechToText();
+  final TextEditingController _typeController = TextEditingController();
   bool _isListening = false;
   String _capturedText = '';
+  bool _typeMode = false;
+
+  @override
+  void dispose() {
+    _typeController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _openConfirmSheet({String initial = ''}) async {
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => ConfirmTaskSheet(initialTitle: initial),
+    );
+  }
+
+  /// Сканирование бумажной записи (камера/галерея → OCR на Android/iOS).
+  Future<void> _scanPaperAndOpenConfirm() async {
+    HapticFeedback.lightImpact();
+    final text = await scanTextFromPaper(context);
+    if (!mounted) return;
+    if (text == null) return;
+    await _openConfirmSheet(initial: text);
+  }
 
   Future<void> _toggleVoiceInput() async {
     HapticFeedback.mediumImpact();
@@ -649,10 +765,7 @@ class _TalkPageState extends State<_TalkPage> {
       await _speech.stop();
       setState(() => _isListening = false);
       if (_capturedText.trim().isNotEmpty && mounted) {
-        context.read<AppState>().addTaskFromText(_capturedText);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Added by voice: $_capturedText')),
-        );
+        await _openConfirmSheet(initial: _capturedText);
       }
       return;
     }
@@ -669,191 +782,282 @@ class _TalkPageState extends State<_TalkPage> {
     );
   }
 
-  Future<void> _openTaskInputDialog({required String title}) async {
-    final controller = TextEditingController();
-    final value = await showDialog<String>(
+  void _openSyncHub() {
+    HapticFeedback.lightImpact();
+    showModalBottomSheet<void>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(title),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(
-            hintText: 'Enter task text',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
-            child: const Text('Add'),
-          ),
-        ],
-      ),
-    );
-    if (!mounted || value == null || value.isEmpty) return;
-    context.read<AppState>().addTaskFromText(value);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Added: $value')),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const SyncHubSheet(),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
-    return Container(
-      color: const Color(0xFFF2EEE7),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 12, 18, 0),
-            child: Row(
-              children: [
-                const Spacer(),
-                _LightCircleIcon(icon: Icons.search, onTap: () {}),
-                const SizedBox(width: 8),
-                _LightCircleIcon(
-                  icon: Icons.settings_rounded,
-                  onTap: () {
-                    showModalBottomSheet<void>(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.transparent,
-                      builder: (_) => const SettingsSheet(),
-                    );
-                  },
-                ),
-              ],
-            ),
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
+          child: Row(
+            children: [
+              const Spacer(),
+              _GlassIconButton(
+                icon: Icons.search_rounded,
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  widget.onSearchTap();
+                },
+              ),
+              const SizedBox(width: 10),
+              _GlassIconButton(
+                icon: Icons.settings_rounded,
+                onTap: () {
+                  showModalBottomSheet<void>(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (_) => const SettingsSheet(),
+                  );
+                },
+              ),
+            ],
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
-            child: Row(
-              children: [
-                const _BrandMark(),
-                const SizedBox(width: 8),
-                Text(
-                  'ubblePlanner',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        color: const Color(0xFF1E1E1E),
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-                const Spacer(),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      'Done: ${state.doneCount}',
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                            color: AppColors.done,
-                          ),
-                    ),
-                    Text(
-                      'Active: ${state.activeCount}',
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                            color: AppColors.active,
-                          ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 30),
-          Text(
-            'Ready for tasks',
-            style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                  color: const Color(0xFF201B1B),
-                  fontWeight: FontWeight.w700,
-                ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            _isListening ? 'Listening... tap again to save' : 'Tap the button to talk',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: const Color(0xFF2F2727),
-                ),
-          ),
-          const SizedBox(height: 34),
-          GestureDetector(
-            onTap: _toggleVoiceInput,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
-              width: 170,
-              height: 170,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    const Color(0xFFF2ECDD),
-                    const Color(0xFF6D6862),
-                  ],
-                  center: const Alignment(0.0, -0.15),
-                ),
-                border: Border.all(
-                  color: _isListening
-                      ? const Color(0xFF6CA8FF)
-                      : const Color(0xFF4A89FF),
-                  width: 4,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.32),
-                    blurRadius: 30,
-                    offset: const Offset(0, 18),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const _BrandMark(),
+            Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: 'ubble',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 22,
+                        ),
+                  ),
+                  TextSpan(
+                    text: 'Planner',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: _purple,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 22,
+                        ),
                   ),
                 ],
               ),
-              child: Icon(
-                _isListening ? Icons.graphic_eq_rounded : Icons.mic_none_rounded,
-                size: 64,
-                color: const Color(0xFF2E2320),
+            ),
+          ],
+        ),
+        const SizedBox(height: 28),
+        Text(
+          'Ready for tasks',
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
               ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          _isListening ? 'Listening… tap again to confirm' : 'Tap the button to talk',
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: Colors.white70,
+              ),
+        ),
+        const SizedBox(height: 28),
+        GestureDetector(
+          onTap: _toggleVoiceInput,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            width: 168,
+            height: 168,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.black.withValues(alpha: 0.45),
+              border: Border.all(
+                color: _isListening ? _purple : _purple,
+                width: 3,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: _purple.withValues(alpha: 0.45),
+                  blurRadius: 28,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: Icon(
+              _isListening ? Icons.graphic_eq_rounded : Icons.mic_none_rounded,
+              size: 62,
+              color: Colors.white,
             ),
           ),
-          const SizedBox(height: 36),
+        ),
+        const SizedBox(height: 32),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 22),
+          child: Row(
+            children: [
+              Expanded(
+                child: _TalkDarkAction(
+                  icon: state.isSyncing ? Icons.sync : Icons.sync_rounded,
+                  label: state.isSyncing ? 'SYNCING' : 'SYNC HUB',
+                  selected: false,
+                  onTap: _openSyncHub,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _TalkDarkAction(
+                  icon: Icons.camera_alt_outlined,
+                  label: 'SCAN',
+                  selected: false,
+                  onTap: _scanPaperAndOpenConfirm,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _TalkDarkAction(
+                  icon: Icons.keyboard_alt_outlined,
+                  label: 'TYPE',
+                  selected: _typeMode,
+                  onTap: () => setState(() => _typeMode = !_typeMode),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (_typeMode) ...[
+          const SizedBox(height: 20),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Row(
               children: [
                 Expanded(
-                  child: _TalkActionButton(
-                    icon: state.isSyncing ? Icons.sync : Icons.sync_rounded,
-                    label: state.isSyncing ? 'SYNCING' : 'SYNC HUB',
-                    onTap: () async {
-                      HapticFeedback.lightImpact();
-                      await context.read<AppState>().syncHub();
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Synced successfully')),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _TalkActionButton(
-                    icon: Icons.camera_alt_outlined,
-                    label: 'SCAN',
-                    onTap: () => _openTaskInputDialog(title: 'Scan task text'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _TalkActionButton(
-                    icon: Icons.keyboard_alt_outlined,
-                    label: 'TYPE',
-                    onTap: () => _openTaskInputDialog(title: 'Type a task'),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.mic_none_rounded, color: Colors.white.withValues(alpha: 0.6)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: _typeController,
+                            style: const TextStyle(color: Colors.white),
+                            decoration: const InputDecoration(
+                              hintText: 'Type your task...',
+                              hintStyle: TextStyle(color: Colors.white38),
+                              border: InputBorder.none,
+                            ),
+                            onSubmitted: (v) {
+                              if (v.trim().isNotEmpty) {
+                                context.read<AppState>().addTaskFromText(v);
+                                _typeController.clear();
+                              }
+                            },
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => _typeController.clear(),
+                          icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 20),
+                        ),
+                        Material(
+                          color: _purple,
+                          shape: const CircleBorder(),
+                          child: InkWell(
+                            customBorder: const CircleBorder(),
+                            onTap: () {
+                              final v = _typeController.text.trim();
+                              if (v.isNotEmpty) {
+                                context.read<AppState>().addTaskFromText(v);
+                                _typeController.clear();
+                              }
+                            },
+                            child: const Padding(
+                              padding: EdgeInsets.all(10),
+                              child: Icon(Icons.send_rounded, color: Colors.white, size: 18),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
             ),
           ),
         ],
+        const Spacer(),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Text(
+            'Welcome back, demo!',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Colors.white54,
+                ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TalkDarkAction extends StatelessWidget {
+  const _TalkDarkAction({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  static const _purple = Color(0xFF8B5CF6);
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        height: 88,
+        decoration: BoxDecoration(
+          color: selected ? _purple.withValues(alpha: 0.35) : Colors.white.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: selected ? _purple : Colors.white.withValues(alpha: 0.12),
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: Colors.white, size: 24),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 11,
+                letterSpacing: 0.3,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -874,7 +1078,6 @@ class _BottomNavBar extends StatelessWidget {
       const _NavItem(icon: Icons.chat_bubble_outline_rounded, label: 'TALK'),
       const _NavItem(icon: Icons.grid_view_rounded, label: 'BUBBLES'),
       const _NavItem(icon: Icons.list_alt_rounded, label: 'LIST'),
-      const _NavItem(icon: Icons.share_outlined, label: 'SHARE'),
     ];
 
     return Container(
@@ -961,14 +1164,14 @@ class _GradientBackground extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         gradient: LinearGradient(
-          begin: Alignment.topRight,
-          end: Alignment.bottomLeft,
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
           colors: [
-            const Color(0xFF12353B).withOpacity(0.75),
-            const Color(0xFF141A2A),
-            const Color(0xFF1E1417),
+            Color(0xFF0A0612),
+            Color(0xFF12081F),
+            Color(0xFF1A0F08),
           ],
         ),
       ),
@@ -1013,70 +1216,6 @@ class _GlassIconButton extends StatelessWidget {
   }
 }
 
-class _LightCircleIcon extends StatelessWidget {
-  const _LightCircleIcon({required this.icon, required this.onTap});
-
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.5),
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.black12),
-        ),
-        child: Icon(icon, color: Colors.black45),
-      ),
-    );
-  }
-}
-
-class _TalkActionButton extends StatelessWidget {
-  const _TalkActionButton({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 92,
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.45),
-          borderRadius: BorderRadius.circular(22),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: Colors.black45),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: Colors.black54,
-                    fontWeight: FontWeight.w700,
-                  ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _BrandMark extends StatelessWidget {
   const _BrandMark();
 
@@ -1091,13 +1230,13 @@ class _BrandMark extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color(0xFF98CCFF),
-            Color(0xFF3B79E8),
+            Color(0xFFB794F6),
+            Color(0xFF6B21A8),
           ],
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF3B79E8).withOpacity(0.5),
+            color: Color(0xFF8B5CF6).withValues(alpha: 0.5),
             blurRadius: 16,
           ),
         ],

@@ -1,0 +1,32 @@
+{
+  "name": "buble-planner-21022026",
+  "version": "1.0.0",
+  "description": "A new Flutter project.",
+  "main": "index.js",
+  "directories": {
+    "lib": "lib",
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "convex:dev": "convex dev",
+    "convex:deploy": "convex deploy"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aslanuisembay-gif/bubble_planner.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/aslanuisembay-gif/bubble_planner/issues"
+  },
+  "homepage": "https://github.com/aslanuisembay-gif/bubble_planner#readme",
+  "dependencies": {
+    "@auth/core": "^0.37.4",
+    "@convex-dev/auth": "^0.0.91",
+    "convex": "^1.32.0"
+  }
+}

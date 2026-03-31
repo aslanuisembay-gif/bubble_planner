@@ -1,0 +1,4 @@
+{
+  "ENV": "dev",
+  "CONVEX_URL_DEV": "https://optimistic-warthog-498.convex.cloud"
+}

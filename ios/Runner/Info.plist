@@ -45,5 +45,9 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Сканирование записей с бумаги для добавления задач.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Выбор фото с рукописной записью для распознавания текста.</string>
 </dict>
 </plist>

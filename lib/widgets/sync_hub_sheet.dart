@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../app_state.dart';
+import '../app_theme.dart';
 import '../translations.dart';
 
 class SyncHubSheet extends StatefulWidget {
@@ -13,25 +14,41 @@ class SyncHubSheet extends StatefulWidget {
 
 class _SyncHubSheetState extends State<SyncHubSheet> {
   int _step = 0;
-
-  static const _purple = Color(0xFF9D00FF);
+  final List<String> _previewTasks = const [
+    'REVIEW EMAIL FROM TEAM',
+    'ORDER SUPPLIES FROM LIST',
+    'FOLLOW UP CALENDAR INVITE',
+    'SCHEDULE CHECKUP FROM NOTE',
+  ];
+  late final Set<String> _selectedPreviewTasks = {..._previewTasks};
 
   @override
   Widget build(BuildContext context) {
     final lang = context.watch<AppState>().languageCode;
+    final bp = context.bp;
+    final accent = bp.primary;
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 18),
       padding: const EdgeInsets.fromLTRB(18, 14, 18, 20),
       decoration: BoxDecoration(
-        color: const Color(0xFF151018),
+        color: bp.modalSurface,
         borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(color: bp.modalBorder),
       ),
-      child: _step == 0 ? _buildIntro(context, lang) : _buildServices(context, lang),
+      child: _step == 0
+          ? _buildIntro(context, lang, bp, accent)
+          : _step == 1
+              ? _buildServices(context, lang, bp, accent)
+              : _buildReview(context, lang, bp, accent),
     );
   }
 
-  Widget _buildIntro(BuildContext context, String lang) {
+  Widget _buildIntro(
+    BuildContext context,
+    String lang,
+    BubblePlannerColors bp,
+    Color accent,
+  ) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -41,16 +58,16 @@ class _SyncHubSheetState extends State<SyncHubSheet> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: _purple.withValues(alpha: 0.35),
+                color: accent.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(Icons.sync_rounded, color: Colors.white, size: 22),
+              child: Icon(Icons.sync_rounded, color: accent, size: 22),
             ),
             const SizedBox(width: 12),
             Text(
               tr('syncHubTitle', lang: lang),
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: bp.textPrimary,
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
               ),
@@ -58,7 +75,7 @@ class _SyncHubSheetState extends State<SyncHubSheet> {
             const Spacer(),
             IconButton(
               onPressed: () => Navigator.pop(context),
-              icon: const Icon(Icons.close_rounded, color: Colors.white70),
+              icon: Icon(Icons.close_rounded, color: bp.textSecondary),
             ),
           ],
         ),
@@ -68,16 +85,16 @@ class _SyncHubSheetState extends State<SyncHubSheet> {
           height: 96,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: Colors.white.withValues(alpha: 0.06),
+            color: bp.listCardFill.withValues(alpha: 0.45),
           ),
-          child: const Icon(Icons.auto_awesome_rounded, color: _purple, size: 48),
+          child: Icon(Icons.auto_awesome_rounded, color: accent, size: 48),
         ),
         const SizedBox(height: 20),
         Text(
           tr('syncHubIntro', lang: lang),
           textAlign: TextAlign.center,
           style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.88),
+            color: bp.textPrimary.withValues(alpha: 0.88),
             height: 1.45,
             fontSize: 15,
           ),
@@ -89,8 +106,8 @@ class _SyncHubSheetState extends State<SyncHubSheet> {
           child: FilledButton(
             onPressed: () => setState(() => _step = 1),
             style: FilledButton.styleFrom(
-              backgroundColor: _purple,
-              foregroundColor: Colors.white,
+              backgroundColor: accent,
+              foregroundColor: bp.onPrimary,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             ),
             child: Text(tr('syncContinue', lang: lang), style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -100,7 +117,12 @@ class _SyncHubSheetState extends State<SyncHubSheet> {
     );
   }
 
-  Widget _buildServices(BuildContext context, String lang) {
+  Widget _buildServices(
+    BuildContext context,
+    String lang,
+    BubblePlannerColors bp,
+    Color accent,
+  ) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -110,16 +132,16 @@ class _SyncHubSheetState extends State<SyncHubSheet> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: _purple.withValues(alpha: 0.35),
+                color: accent.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(Icons.sync_rounded, color: Colors.white, size: 22),
+              child: Icon(Icons.sync_rounded, color: accent, size: 22),
             ),
             const SizedBox(width: 12),
             Text(
               tr('syncHubTitle', lang: lang),
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: bp.textPrimary,
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
               ),
@@ -127,7 +149,7 @@ class _SyncHubSheetState extends State<SyncHubSheet> {
             const Spacer(),
             IconButton(
               onPressed: () => Navigator.pop(context),
-              icon: const Icon(Icons.close_rounded, color: Colors.white70),
+              icon: Icon(Icons.close_rounded, color: bp.textSecondary),
             ),
           ],
         ),
@@ -138,6 +160,7 @@ class _SyncHubSheetState extends State<SyncHubSheet> {
           title: tr('syncGmailTitle', lang: lang),
           subtitle: tr('syncGmailSubtitle', lang: lang),
           badge: '+2',
+          bp: bp,
         ),
         const SizedBox(height: 10),
         _serviceCard(
@@ -146,6 +169,7 @@ class _SyncHubSheetState extends State<SyncHubSheet> {
           title: tr('syncCalTitle', lang: lang),
           subtitle: tr('syncCalSubtitle', lang: lang),
           badge: '+1',
+          bp: bp,
         ),
         const SizedBox(height: 10),
         _serviceCard(
@@ -154,27 +178,28 @@ class _SyncHubSheetState extends State<SyncHubSheet> {
           title: tr('syncNotesTitle', lang: lang),
           subtitle: tr('syncNotesSubtitle', lang: lang),
           badge: '+1',
+          bp: bp,
         ),
         const SizedBox(height: 14),
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: const Color(0xFF0F2A18),
+            color: bp.success.withValues(alpha: bp.brightness == Brightness.dark ? 0.18 : 0.12),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFF34D399), width: 1.5),
+            border: Border.all(color: bp.success.withValues(alpha: 0.85), width: 1.5),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  const Icon(Icons.auto_awesome_rounded, color: Color(0xFF34D399), size: 20),
+                  Icon(Icons.auto_awesome_rounded, color: bp.success, size: 20),
                   const SizedBox(width: 8),
                   Text(
                     tr('syncFoundTasks', lang: lang),
                     style: TextStyle(
-                      color: const Color(0xFF6EE7B7),
+                      color: bp.success,
                       fontWeight: FontWeight.w800,
                       fontSize: 15,
                     ),
@@ -185,7 +210,7 @@ class _SyncHubSheetState extends State<SyncHubSheet> {
               Text(
                 tr('syncFoundSubtitle', lang: lang),
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.72),
+                  color: bp.textPrimary.withValues(alpha: 0.72),
                   fontSize: 13,
                   height: 1.35,
                 ),
@@ -198,19 +223,130 @@ class _SyncHubSheetState extends State<SyncHubSheet> {
           width: double.infinity,
           height: 50,
           child: FilledButton(
-            onPressed: () {
-              context.read<AppState>().applySyncHubResults();
+            onPressed: () => setState(() => _step = 2),
+            style: FilledButton.styleFrom(
+              backgroundColor: accent,
+              foregroundColor: bp.onPrimary,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
+            child: Text(
+              tr('syncReviewTasks', lang: lang),
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildReview(
+    BuildContext context,
+    String lang,
+    BubblePlannerColors bp,
+    Color accent,
+  ) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            IconButton(
+              onPressed: () => setState(() => _step = 1),
+              icon: Icon(Icons.arrow_back_rounded, color: bp.textSecondary),
+              tooltip: tr('syncBack', lang: lang),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                tr('syncReviewTitle', lang: lang),
+                style: TextStyle(
+                  color: bp.textPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            IconButton(
+              onPressed: () => Navigator.pop(context),
+              icon: Icon(Icons.close_rounded, color: bp.textSecondary),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 260),
+          child: ListView.separated(
+            shrinkWrap: true,
+            itemCount: _previewTasks.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            itemBuilder: (_, i) {
+              final taskTitle = _previewTasks[i];
+              final selected = _selectedPreviewTasks.contains(taskTitle);
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: bp.listCardFill.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: bp.listCardBorder),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.task_alt_rounded, color: bp.success, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        taskTitle,
+                        style: TextStyle(
+                          color: bp.textPrimary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    Checkbox.adaptive(
+                      value: selected,
+                      activeColor: accent,
+                      onChanged: (v) {
+                        setState(() {
+                          if (v == true) {
+                            _selectedPreviewTasks.add(taskTitle);
+                          } else {
+                            _selectedPreviewTasks.remove(taskTitle);
+                          }
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 14),
+        SizedBox(
+          width: double.infinity,
+          height: 50,
+          child: FilledButton(
+            onPressed: _selectedPreviewTasks.isEmpty
+                ? null
+                : () {
+                    context
+                        .read<AppState>()
+                        .applySyncHubResultsSelected(_selectedPreviewTasks);
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text(tr('syncTasksAddedSnack', lang: lang))),
               );
-            },
+                  },
             style: FilledButton.styleFrom(
-              backgroundColor: _purple,
-              foregroundColor: Colors.white,
+              backgroundColor: accent,
+              foregroundColor: bp.onPrimary,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             ),
-            child: Text(tr('syncAddToPlanner', lang: lang), style: const TextStyle(fontWeight: FontWeight.w700)),
+            child: Text(
+              tr('syncAddToPlanner', lang: lang),
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
           ),
         ),
       ],
@@ -223,13 +359,14 @@ class _SyncHubSheetState extends State<SyncHubSheet> {
     required String title,
     required String subtitle,
     required String badge,
+    required BubblePlannerColors bp,
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.06),
+        color: bp.listCardFill.withValues(alpha: 0.45),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(color: bp.listCardBorder),
       ),
       child: Row(
         children: [
@@ -247,19 +384,29 @@ class _SyncHubSheetState extends State<SyncHubSheet> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                Text(
+                  title,
+                  style: TextStyle(color: bp.textPrimary, fontWeight: FontWeight.w700),
+                ),
                 const SizedBox(height: 4),
                 Text(
                   subtitle,
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.55), fontSize: 12),
+                  style: TextStyle(color: bp.textSecondary, fontSize: 12),
                 ),
               ],
             ),
           ),
           Column(
             children: [
-              const Icon(Icons.check_circle_rounded, color: Color(0xFF34D399), size: 22),
-              Text(badge, style: const TextStyle(color: Color(0xFF34D399), fontWeight: FontWeight.w700, fontSize: 12)),
+              Icon(Icons.check_circle_rounded, color: bp.success, size: 22),
+              Text(
+                badge,
+                style: TextStyle(
+                  color: bp.success,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
+              ),
             ],
           ),
         ],

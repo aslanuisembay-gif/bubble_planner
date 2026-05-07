@@ -7,10 +7,12 @@ class RoutineCard extends StatelessWidget {
     super.key,
     required this.item,
     required this.onDelete,
+    this.onEdit,
   });
 
   final RoutineItem item;
   final VoidCallback onDelete;
+  final VoidCallback? onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -55,6 +57,12 @@ class RoutineCard extends StatelessWidget {
               ],
             ),
           ),
+          if (onEdit != null)
+            IconButton(
+              onPressed: onEdit,
+              icon: const Icon(Icons.edit_outlined),
+              color: Colors.white70,
+            ),
           IconButton(
             onPressed: onDelete,
             icon: const Icon(Icons.delete_outline_rounded),

@@ -1,5 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "git clone https://github.com/flutter/flutter.git --depth 1 -b stable .vercel_flutter && ./.vercel_flutter/bin/flutter --version && ./.vercel_flutter/bin/flutter pub get",
+  "buildCommand": "./.vercel_flutter/bin/flutter build web --release --dart-define-from-file=config/dart_defines/prod.json --base-href /",
+  "outputDirectory": "build/web",
   "rewrites": [
     {
       "source": "/(.*)",
@@ -11,6 +14,18 @@
       "source": "/(.*)",
       "headers": [
         { "key": "X-Content-Type-Options", "value": "nosniff" }
+      ]
+    },
+    {
+      "source": "/index.html",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate, max-age=0" }
+      ]
+    },
+    {
+      "source": "/flutter_service_worker.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate, max-age=0" }
       ]
     }
   ]

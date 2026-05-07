@@ -1,0 +1,113 @@
+================================================================================
+BM151 – LOAN AMORTIZATION & BUDGETED INCOME STATEMENT
+REFERENCE FOR EXCEL (copy what you need). Student: fill in your name.
+================================================================================
+
+A) BASE LOAN (Option 1 in many templates)
+--------------------------------------------------------------------------------
+Assumptions (from typical BM151 template):
+  Investment (purchase price)     200,000
+  Down payment                    25%
+  Loan amount                     = 200000 * (1 - 0.25)  =  150,000
+  Annual nominal rate             4.5%
+  Monthly rate                    = 4.5% / 12
+  Term                             15 years  →  180 months
+
+Put labels in column A and values in column B as your template requires.
+
+
+B) KEY CELLS (Excel / Google Sheets)
+--------------------------------------------------------------------------------
+Monthly interest rate (cell example B5):
+  =4.5%/12
+
+Loan term in months (cell example B7):
+  =15*12
+
+Loan amount (cell example B3):
+  =200000*(1-25%)     or     =200000*0.75
+
+Total monthly payment (fixed payment loan):
+  =PMT(4.5%/12, 180, -150000)
+
+For month number k (k = 1 … 180) in row k of your table:
+  Interest payment:     =IPMT(4.5%/12, k, 180, -150000)
+  Principal payment:    =PPMT(4.5%/12, k, 180, -150000)
+  (Optional) Balance after payment k:
+      =FV(4.5%/12, k, PMT(4.5%/12,180,-150000), -150000)
+
+Check month 1 by hand:
+  Interest month 1 ≈ 150000 * (4.5%/12) = 562.50
+  If your IPMT for k=1 does not match ~562.50, fix rate / sign convention.
+
+
+C) “TOTAL IN YEAR” (first calendar year = first 12 months of the loan)
+--------------------------------------------------------------------------------
+Sum of interest for months 1–12:
+  =SUM(IPMT(4.5%/12, {1,2,3,4,5,6,7,8,9,10,11,12}, 180, -150000))
+
+In Excel 365 you can use the array above. In older Excel, sum 12 separate IPMT cells.
+
+Sum of principal for months 1–12:
+  =SUM(PPMT(4.5%/12, {1,2,3,4,5,6,7,8,9,10,11,12}, 180, -150000))
+
+
+D) BUDGETED INCOME STATEMENT TAB (same structure as “No loan” example)
+--------------------------------------------------------------------------------
+Use the SAME operating figures as the template (example from a filled row):
+  Budgeted sales volume             210,000
+  Costs of goods sold                98,692
+  Marketing and administrative       90,910
+  Total budgeted costs              189,602
+  Budgeted operating profit          20,398
+
+Let:
+  OP  = operating profit (here 20,398)
+  INT = total interest expense FOR THE BUDGET YEAR (usually sum of the 12
+        interest payments that fall in that budget year on your amortization)
+
+Then (matches the “no loan” check: OP × 75% when INT = 0):
+  Budgeted profit before tax   = OP - INT
+  Taxes (25%)                  = (OP - INT) * 25%
+  Budgeted profit after taxes  = (OP - INT) * 75%
+
+Excel examples:
+  Taxes:              =(20398 - INT_cell) * 0.25
+  Profit after tax:   =(20398 - INT_cell) * 0.75
+
+
+E) LOAN 2 AND LOAN 3 (required by rubric: search online yourself)
+--------------------------------------------------------------------------------
+You must choose TWO real products/rates/terms that fit your scenario and cite
+the source (lender page or rate table + date). Replace placeholders:
+
+  Loan_amount_2   = 150000   (or adjust if your scenario changes down payment)
+  Annual_rate_2   = ?.?%
+  Months_2        = ?
+
+  Monthly payment:
+      =PMT(Annual_rate_2/12, Months_2, -Loan_amount_2)
+
+  Month k interest:
+      =IPMT(Annual_rate_2/12, k, Months_2, -Loan_amount_2)
+
+Repeat for Loan 3 with different months/rate from another source.
+
+Then compute YEAR 1 total interest for each loan (sum first 12 IPMT values)
+and plug INT into the income statement section for that option.
+
+
+F) COMPARISON (rubric: highest Budgeted Profit After Taxes)
+--------------------------------------------------------------------------------
+For each option compute profit after taxes with THAT option’s INT.
+Choose the option with the largest profit after taxes.
+
+
+G) HEADER / NAME
+--------------------------------------------------------------------------------
+Type your name in the assignment header yourself, e.g.:
+  Name: Aslan Uisembay
+
+================================================================================
+END OF REFERENCE – verify all numbers against your official template wording.
+================================================================================

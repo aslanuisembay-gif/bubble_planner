@@ -5,9 +5,11 @@
 *.swp
 .DS_Store
 .atom/
+.build/
 .buildlog/
 .history
 .svn/
+.swiftpm/
 migrate_working_dir/
 
 # IntelliJ related
@@ -44,5 +46,10 @@ app.*.map.json
 
 .env.local
 
+# Node (Convex CLI, npm deps — не коммитить)
+node_modules/
+
 # Big videos
 *.mov
+.vercel
+.env*.local

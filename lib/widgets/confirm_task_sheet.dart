@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -15,12 +16,7 @@ class ConfirmTaskSheet extends StatefulWidget {
 
 class _ConfirmTaskSheetState extends State<ConfirmTaskSheet> {
   late final TextEditingController _title;
-  late DateTime _day;
-  late int _hour;
-  late int _minute;
-  late final FixedExtentScrollController _dayController;
-  late final FixedExtentScrollController _hourController;
-  late final FixedExtentScrollController _minuteController;
+  late DateTime _dueAt;
 
   static const _purple = Color(0xFF8B5CF6);
 
@@ -29,20 +25,12 @@ class _ConfirmTaskSheetState extends State<ConfirmTaskSheet> {
     super.initState();
     _title = TextEditingController(text: widget.initialTitle);
     final n = DateTime.now();
-    _day = DateTime(n.year, n.month, n.day);
-    _hour = n.hour;
-    _minute = (n.minute ~/ 5) * 5;
-    _dayController = FixedExtentScrollController();
-    _hourController = FixedExtentScrollController(initialItem: _hour);
-    _minuteController = FixedExtentScrollController(initialItem: _minute ~/ 5);
+    _dueAt = DateTime(n.year, n.month, n.day, n.hour, n.minute);
   }
 
   @override
   void dispose() {
     _title.dispose();
-    _dayController.dispose();
-    _hourController.dispose();
-    _minuteController.dispose();
     super.dispose();
   }
 
@@ -50,20 +38,23 @@ class _ConfirmTaskSheetState extends State<ConfirmTaskSheet> {
   Widget build(BuildContext context) {
     final lang = context.watch<AppState>().languageCode;
     final bottom = MediaQuery.of(context).viewInsets.bottom;
-    return Padding(
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
       padding: EdgeInsets.only(bottom: bottom),
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-        padding: const EdgeInsets.fromLTRB(20, 18, 20, 22),
-        decoration: BoxDecoration(
-          color: const Color(0xFF141018),
-          borderRadius: BorderRadius.circular(26),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+      child: SingleChildScrollView(
+        child: Container(
+          margin: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 22),
+          decoration: BoxDecoration(
+            color: const Color(0xFF141018),
+            borderRadius: BorderRadius.circular(26),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
             Text(
               tr('confirmTaskTitle', lang: lang),
               textAlign: TextAlign.center,
@@ -85,6 +76,10 @@ class _ConfirmTaskSheetState extends State<ConfirmTaskSheet> {
             const SizedBox(height: 8),
             TextField(
               controller: _title,
+              autocorrect: true,
+              enableSuggestions: true,
+              smartDashesType: SmartDashesType.enabled,
+              smartQuotesType: SmartQuotesType.enabled,
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
                 filled: true,
@@ -96,104 +91,46 @@ class _ConfirmTaskSheetState extends State<ConfirmTaskSheet> {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Text(tr('whenLabel', lang: lang),
-                    style: TextStyle(color: _purple, fontWeight: FontWeight.w700, fontSize: 12)),
-                const Spacer(),
-                Text(tr('hourLabel', lang: lang),
-                    style: TextStyle(color: _purple, fontWeight: FontWeight.w700, fontSize: 12)),
-                const SizedBox(width: 48),
-                Text(tr('minLabel', lang: lang),
-                    style: TextStyle(color: _purple, fontWeight: FontWeight.w700, fontSize: 12)),
-              ],
+            const SizedBox(height: 12),
+            Text(
+              tr('whenLabel', lang: lang),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: _purple,
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+              ),
             ),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: _wheel(
-                    height: 120,
-                    child: ListWheelScrollView.useDelegate(
-                      controller: _dayController,
-                      itemExtent: 36,
-                      diameterRatio: 1.4,
-                      physics: const FixedExtentScrollPhysics(),
-                      onSelectedItemChanged: (i) {
-                        setState(() {
-                          if (i == 0) {
-                            final n = DateTime.now();
-                            _day = DateTime(n.year, n.month, n.day);
-                          } else {
-                            final n = DateTime.now();
-                            final t = n.add(const Duration(days: 1));
-                            _day = DateTime(t.year, t.month, t.day);
-                          }
-                        });
-                      },
-                      childDelegate: ListWheelChildBuilderDelegate(
-                        childCount: 2,
-                        builder: (_, i) => Center(
-                          child: Text(
-                            i == 0 ? tr('today', lang: lang) : tr('tomorrow', lang: lang),
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                      ),
+            SizedBox(
+              height: 216,
+              child: CupertinoTheme(
+                data: const CupertinoThemeData(
+                  brightness: Brightness.dark,
+                  textTheme: CupertinoTextThemeData(
+                    dateTimePickerTextStyle: TextStyle(
+                      color: Color(0xFFE5E5EA),
+                      fontSize: 22,
                     ),
                   ),
                 ),
-                Expanded(
-                  child: _wheel(
-                    height: 120,
-                    child: ListWheelScrollView.useDelegate(
-                      controller: _hourController,
-                      itemExtent: 36,
-                      diameterRatio: 1.4,
-                      physics: const FixedExtentScrollPhysics(),
-                      onSelectedItemChanged: (i) => setState(() => _hour = i),
-                      childDelegate: ListWheelChildBuilderDelegate(
-                        childCount: 24,
-                        builder: (_, i) => Center(
-                          child: Text(
-                            i.toString().padLeft(2, '0'),
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
+                child: CupertinoDatePicker(
+                  mode: CupertinoDatePickerMode.dateAndTime,
+                  initialDateTime: _dueAt,
+                  minimumDate: DateTime(2020, 1, 1),
+                  maximumDate: DateTime(2035, 12, 31, 23, 59),
+                  use24hFormat: true,
+                  minuteInterval: 1,
+                  onDateTimeChanged: (d) => setState(() => _dueAt = d),
                 ),
-                Expanded(
-                  child: _wheel(
-                    height: 120,
-                    child: ListWheelScrollView.useDelegate(
-                      controller: _minuteController,
-                      itemExtent: 36,
-                      diameterRatio: 1.4,
-                      physics: const FixedExtentScrollPhysics(),
-                      onSelectedItemChanged: (i) => setState(() => _minute = i * 5),
-                      childDelegate: ListWheelChildBuilderDelegate(
-                        childCount: 12,
-                        builder: (_, i) => Center(
-                          child: Text(
-                            (i * 5).toString().padLeft(2, '0'),
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
             const SizedBox(height: 18),
             Row(
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: () => Navigator.pop(context, false),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.white70,
                       side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
@@ -210,9 +147,8 @@ class _ConfirmTaskSheetState extends State<ConfirmTaskSheet> {
                     onPressed: () {
                       final text = _title.text.trim();
                       if (text.isEmpty) return;
-                      final due = DateTime(_day.year, _day.month, _day.day, _hour, _minute);
-                      context.read<AppState>().addConfirmedTask(text, due);
-                      Navigator.pop(context);
+                      context.read<AppState>().addConfirmedTask(text, _dueAt);
+                      Navigator.pop(context, true);
                     },
                     style: FilledButton.styleFrom(
                       backgroundColor: _purple,
@@ -220,27 +156,18 @@ class _ConfirmTaskSheetState extends State<ConfirmTaskSheet> {
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     ),
-                    child: Text(tr('okAddTask', lang: lang), style: const TextStyle(fontWeight: FontWeight.w700)),
+                    child: Text(
+                      tr('okAddTask', lang: lang),
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
                   ),
                 ),
               ],
             ),
-          ],
+            ],
+          ),
         ),
       ),
-    );
-  }
-
-  Widget _wheel({required double height, required Widget child}) {
-    return Container(
-      height: height,
-      margin: const EdgeInsets.symmetric(horizontal: 4),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.35),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-      ),
-      child: child,
     );
   }
 }

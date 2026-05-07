@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:convex_flutter/convex_flutter.dart';
 import 'package:flutter/foundation.dart';
@@ -14,6 +15,59 @@ class ConvexAuthSession {
   static const FlutterSecureStorage _storage = FlutterSecureStorage();
   static String? _refreshToken;
 
+  static bool _isTransientAuthError(Object e) {
+    final s = e.toString();
+    return s.contains('TimeoutException') || s.contains('WebSocket not connected');
+  }
+
+  static Future<void> _ensureConnectedForAuth() async {
+    if (ConvexClient.instance.isConnected) return;
+    for (var i = 0; i < 3; i++) {
+      try {
+        final ok = await ConvexClient.instance
+            .reconnect()
+            .timeout(const Duration(seconds: 4));
+        if (ok || ConvexClient.instance.isConnected) return;
+      } catch (_) {
+        // Ignore and continue retries below.
+      }
+      await Future<void>.delayed(Duration(milliseconds: 450 * (i + 1)));
+      if (ConvexClient.instance.isConnected) return;
+    }
+    throw StateError('WebSocket not connected');
+  }
+
+  static Future<String> _runAuthActionWithRetry({
+    required Map<String, dynamic> args,
+    int retries = 2,
+    Duration attemptTimeout = const Duration(seconds: 12),
+  }) async {
+    Object? lastError;
+    for (var i = 0; i <= retries; i++) {
+      try {
+        await _ensureConnectedForAuth();
+        return await ConvexClient.instance
+            .action(name: 'auth:signIn', args: args)
+            .timeout(
+              attemptTimeout,
+              onTimeout: () => throw TimeoutException(
+                'Authentication request timed out.',
+              ),
+            );
+      } catch (e) {
+        lastError = e;
+        if (i >= retries || !_isTransientAuthError(e)) rethrow;
+        try {
+          await ConvexClient.instance.reconnect();
+        } catch (_) {
+          // Best-effort reconnect before next retry.
+        }
+        await Future<void>.delayed(Duration(milliseconds: 600 * (i + 1)));
+      }
+    }
+    throw lastError ?? Exception('auth:signIn failed');
+  }
+
   static Future<void> signIn({
     required String email,
     required String password,
@@ -28,8 +82,7 @@ class ConvexAuthSession {
       throw ArgumentError('Укажите логин');
     }
 
-    final raw = await ConvexClient.instance.action(
-      name: 'auth:signIn',
+    final raw = await _runAuthActionWithRetry(
       args: {
         'provider': 'password',
         'params': {
@@ -41,6 +94,54 @@ class ConvexAuthSession {
     );
     final map = _parseActionJson(raw);
     await _applyTokensFromResponse(map);
+  }
+
+  static Future<void> requestPasswordReset({required String emailOrUsername}) async {
+    if (!ConvexEnv.backendReady) {
+      throw StateError('ConvexClient not ready');
+    }
+    final value = emailOrUsername.trim();
+    if (value.isEmpty) {
+      throw ArgumentError('Введите логин');
+    }
+    final raw = await _runAuthActionWithRetry(
+      args: {
+        'provider': 'password',
+        'params': {
+          'email': value,
+          'flow': 'reset',
+        },
+      },
+    );
+    _parseActionJson(raw);
+  }
+
+  static Future<void> resetPasswordWithCode({
+    required String emailOrUsername,
+    required String code,
+    required String newPassword,
+  }) async {
+    if (!ConvexEnv.backendReady) {
+      throw StateError('ConvexClient not ready');
+    }
+    final idValue = emailOrUsername.trim();
+    final codeValue = code.trim();
+    final passValue = newPassword.trim();
+    if (idValue.isEmpty || codeValue.isEmpty || passValue.isEmpty) {
+      throw ArgumentError('Missing reset params');
+    }
+    final raw = await _runAuthActionWithRetry(
+      args: {
+        'provider': 'password',
+        'params': {
+          'email': idValue,
+          'flow': 'reset-verification',
+          'code': codeValue,
+          'newPassword': passValue,
+        },
+      },
+    );
+    await _applyTokensFromResponse(_parseActionJson(raw));
   }
 
   static Future<void> _applyTokensFromResponse(Map<String, dynamic> map) async {
@@ -56,10 +157,12 @@ class ConvexAuthSession {
     _refreshToken = refresh;
     await _storage.write(key: _kRefresh, value: refresh);
     await ConvexClient.instance.setAuth(token: token);
-    await ConvexClient.instance.setAuthWithRefresh(
-      fetchToken: _fetchToken,
-      onAuthChange: (_) {},
-    );
+    if (!kIsWeb) {
+      await ConvexClient.instance.setAuthWithRefresh(
+        fetchToken: _fetchToken,
+        onAuthChange: (_) {},
+      );
+    }
   }
 
   static Future<String?> _fetchToken() async {
@@ -67,8 +170,7 @@ class ConvexAuthSession {
     if (r == null || r.isEmpty) {
       return null;
     }
-    final raw = await ConvexClient.instance.action(
-      name: 'auth:signIn',
+    final raw = await _runAuthActionWithRetry(
       args: {'refreshToken': r},
     );
     final map = _parseActionJson(raw);
@@ -101,10 +203,12 @@ class ConvexAuthSession {
         return false;
       }
       await ConvexClient.instance.setAuth(token: jwt);
-      await ConvexClient.instance.setAuthWithRefresh(
-        fetchToken: _fetchToken,
-        onAuthChange: (_) {},
-      );
+      if (!kIsWeb) {
+        await ConvexClient.instance.setAuthWithRefresh(
+          fetchToken: _fetchToken,
+          onAuthChange: (_) {},
+        );
+      }
       return true;
     } catch (e, st) {
       debugPrint('ConvexAuthSession.tryRestore: $e\n$st');

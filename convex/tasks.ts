@@ -119,13 +119,14 @@ export const create = mutation({
     isDone: v.boolean(),
     recurrenceDays: v.optional(v.array(v.string())),
     reminderAtMs: v.optional(v.number()),
+    reminderOffsets: v.optional(v.array(v.number())),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (userId === null) {
       throw new Error("Unauthenticated");
     }
-    const { recurrenceDays, reminderAtMs, ...rest } = args;
+    const { recurrenceDays, reminderAtMs, reminderOffsets, ...rest } = args;
     const doc: {
       userId: typeof userId;
       categoryId: string;
@@ -135,11 +136,14 @@ export const create = mutation({
       isDone: boolean;
       recurrenceDays?: string[];
       reminderAtMs?: number;
+      reminderOffsets?: number[];
     } = { userId, ...rest };
     if (recurrenceDays !== undefined) {
       doc.recurrenceDays = recurrenceDays;
     }
-    if (reminderAtMs !== undefined) {
+    if (reminderOffsets !== undefined) {
+      doc.reminderOffsets = reminderOffsets;
+    } else if (reminderAtMs !== undefined) {
       doc.reminderAtMs = reminderAtMs;
     }
     return await ctx.db.insert("tasks", doc);
@@ -158,6 +162,7 @@ export const updateFields = mutation({
     clearRecurrence: v.optional(v.boolean()),
     reminderAtMs: v.optional(v.number()),
     clearReminder: v.optional(v.boolean()),
+    reminderOffsets: v.optional(v.array(v.number())),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -191,10 +196,16 @@ export const updateFields = mutation({
     }
     if (args.clearReminder) {
       patch.reminderAtMs = undefined;
+      patch.reminderOffsets = undefined;
+    } else if (args.reminderOffsets !== undefined) {
+      patch.reminderOffsets = args.reminderOffsets;
+      patch.reminderAtMs = undefined;
     } else if (args.reminderAtMs !== undefined) {
       patch.reminderAtMs = args.reminderAtMs;
+      patch.reminderOffsets = undefined;
     }
     await ctx.db.patch(args.id, patch);
+    return { ok: true as const };
   },
 });
 

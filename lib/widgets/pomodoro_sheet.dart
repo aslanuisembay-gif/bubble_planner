@@ -130,8 +130,8 @@ class _PomodoroSheetState extends State<PomodoroSheet> {
       final p = await SharedPreferences.getInstance();
       final focusMin = p.getInt(_kPrefsPomodoroFocusMin);
       final breakMin = p.getInt(_kPrefsPomodoroBreakMin);
-      final nextFocus = (focusMin == null ? null : focusMin.clamp(1, 240))?.toInt();
-      final nextBreak = (breakMin == null ? null : breakMin.clamp(1, 240))?.toInt();
+      final nextFocus = (focusMin?.clamp(1, 240))?.toInt();
+      final nextBreak = (breakMin?.clamp(1, 240))?.toInt();
       if (!mounted) return;
       setState(() {
         if (nextFocus != null) _focusSec = nextFocus * 60;

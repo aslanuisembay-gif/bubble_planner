@@ -791,23 +791,16 @@ class _CategoryTasksScreenState extends State<CategoryTasksScreen> {
                           ),
                         ),
                         Expanded(
-                          child: Listener(
-                            behavior: HitTestBehavior.translucent,
-                            onPointerDown: (_) {
-                              if (_menuOpenTaskId != null) {
+                          child: NotificationListener<ScrollNotification>(
+                            onNotification: (n) {
+                              if (_menuOpenTaskId != null &&
+                                  (n is ScrollUpdateNotification ||
+                                      n is UserScrollNotification)) {
                                 setState(() => _menuOpenTaskId = null);
                               }
+                              return false;
                             },
-                            child: NotificationListener<ScrollNotification>(
-                              onNotification: (n) {
-                                if (_menuOpenTaskId != null &&
-                                    (n is ScrollUpdateNotification ||
-                                        n is UserScrollNotification)) {
-                                  setState(() => _menuOpenTaskId = null);
-                                }
-                                return false;
-                              },
-                              child: ListView(
+                            child: ListView(
                               padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
                               children: [
                                 if (filteredToday.isNotEmpty) ...[
@@ -1040,7 +1033,6 @@ class _CategoryTasksScreenState extends State<CategoryTasksScreen> {
                                     ),
                                   ),
                               ],
-                              ),
                             ),
                           ),
                         ),

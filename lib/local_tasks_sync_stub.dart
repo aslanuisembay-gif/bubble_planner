@@ -2,3 +2,7 @@
 void writeLocalTasksSync(String json, int idSeed) {}
 
 (String?, int?) readLocalTasksSync() => (null, null);
+
+void writeCloudTasksSnapshotSync(String jsonPayload) {}
+
+String? readCloudTasksSnapshotSync() => null;

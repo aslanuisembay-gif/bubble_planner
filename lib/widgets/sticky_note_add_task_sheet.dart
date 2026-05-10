@@ -9,6 +9,7 @@ import 'package:speech_to_text/speech_to_text.dart';
 import '../app_state.dart';
 import '../app_theme.dart';
 import '../services/paper_scan.dart';
+import '../services/voice_input_errors.dart';
 import 'confirm_task_sheet.dart';
 import '../translations.dart';
 
@@ -70,12 +71,15 @@ class _FullScreenAddTaskPageState extends State<_FullScreenAddTaskPage>
       }
       return;
     }
+    final lang = context.read<AppState>().languageCode;
     final available = await _speech.initialize(
       onError: (error) {
         if (!mounted) return;
         setState(() => _isListening = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Voice input error: ${error.errorMsg}')),
+          SnackBar(
+            content: Text(voiceInputErrorSnackText(error.errorMsg, lang)),
+          ),
         );
       },
       onStatus: (status) {

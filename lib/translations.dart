@@ -66,6 +66,9 @@ const Map<String, Map<String, String>> _translations = {
     'enableDailyRoutinesBanner': 'ENABLE DAILY ROUTINES',
     'readyForTasks': 'Ready for tasks',
     'listeningHint': 'Listening… tap again to confirm',
+    'voiceErrorNotAllowed':
+        'Microphone or speech recognition is blocked. Allow access in system settings (or in the browser address bar for this site), then try again.',
+    'voiceErrorGeneric': 'Voice input: {msg}',
     'tapToTalk': 'Tap the button to talk',
     'syncHub': 'SYNC HUB',
     'syncing': 'SYNCING',
@@ -416,6 +419,9 @@ const Map<String, Map<String, String>> _translations = {
     'enableDailyRoutinesBanner': 'ВКЛЮЧИТЬ ЕЖЕДНЕВНЫЕ РИТУАЛЫ',
     'readyForTasks': 'Готов к задачам',
     'listeningHint': 'Слушаю… нажмите ещё раз для подтверждения',
+    'voiceErrorNotAllowed':
+        'Микрофон или распознавание речи отключены. Разрешите доступ в настройках системы (на сайте — в панели адреса браузера) и попробуйте снова.',
+    'voiceErrorGeneric': 'Голосовой ввод: {msg}',
     'tapToTalk': 'Нажмите кнопку, чтобы говорить',
     'syncHub': 'СИНХР-ЦЕНТР',
     'syncing': 'СИНХР…',
@@ -786,6 +792,8 @@ const Map<String, String> _kkUiOverrides = {
   'navList': 'ТІЗІМ',
   'navBubbles': 'КӨПІРШІК',
   'navTalk': 'ДАУЫС',
+  'voiceErrorNotAllowed':
+      'Микрофон немесе сөз тану өшірілген. Жүйе баптауларында рұқсат беріңіз (вебте — браузердегі белгішені басыңыз) және қайта көріңіз.',
   'filterAll': 'Барлығы',
   'filterActive': 'Белсенді',
   'filterDone': 'Орындалды',

@@ -28,5 +28,9 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Голосовой ввод задач и заметок.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Распознавание речи для голосового ввода.</string>
 </dict>
 </plist>

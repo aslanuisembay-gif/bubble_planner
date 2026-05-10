@@ -5,6 +5,7 @@ import 'package:web/web.dart' as web;
 /// Как в shared_preferences_web: ключ = `flutter.` + имя, значение = json.encode(...).
 const String _kTasks = 'flutter.bubble_planner_local_tasks_v1';
 const String _kSeed = 'flutter.bubble_planner_local_id_seed_v1';
+const String _kCloudSnap = 'flutter.bubble_planner_cloud_tasks_snapshot_v1';
 
 void writeLocalTasksSync(String json, int idSeed) {
   web.window.localStorage.setItem(_kTasks, jsonEncode(json));
@@ -44,4 +45,21 @@ void writeLocalTasksSync(String json, int idSeed) {
     }
   }
   return (tasksRaw, seed);
+}
+
+void writeCloudTasksSnapshotSync(String jsonPayload) {
+  web.window.localStorage.setItem(_kCloudSnap, jsonEncode(jsonPayload));
+}
+
+String? readCloudTasksSnapshotSync() {
+  final ts = web.window.localStorage.getItem(_kCloudSnap);
+  if (ts == null || ts.isEmpty) return null;
+  try {
+    final d = jsonDecode(ts);
+    if (d is String) return d;
+    if (d is List || d is Map) return jsonEncode(d);
+    return ts;
+  } catch (_) {
+    return ts;
+  }
 }

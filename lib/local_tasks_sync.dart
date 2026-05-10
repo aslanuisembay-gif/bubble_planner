@@ -6,3 +6,9 @@ void writeLocalTasksSync(String json, int idSeed) =>
     impl.writeLocalTasksSync(json, idSeed);
 
 (String?, int?) readLocalTasksSync() => impl.readLocalTasksSync();
+
+/// Снимок облачных задач перед logout (веб: синхронно в localStorage).
+void writeCloudTasksSnapshotSync(String jsonPayload) =>
+    impl.writeCloudTasksSnapshotSync(jsonPayload);
+
+String? readCloudTasksSnapshotSync() => impl.readCloudTasksSnapshotSync();

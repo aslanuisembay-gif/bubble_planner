@@ -16,6 +16,7 @@ import 'convex_env.dart';
 import 'app_theme.dart';
 import 'translations.dart' show tr, trFill;
 import 'services/paper_scan.dart';
+import 'services/voice_input_errors.dart';
 import 'screens/login_screen.dart';
 import 'tabs/tasks_list_tab.dart';
 import 'widgets/bubble_widget.dart';
@@ -1297,12 +1298,15 @@ class _TalkPageState extends State<_TalkPage> {
       setState(() => _isListening = false);
       return;
     }
+    final lang = context.read<AppState>().languageCode;
     final available = await _speech.initialize(
       onError: (error) {
         if (!mounted) return;
         setState(() => _isListening = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Voice input error: ${error.errorMsg}')),
+          SnackBar(
+            content: Text(voiceInputErrorSnackText(error.errorMsg, lang)),
+          ),
         );
       },
       onStatus: (status) {

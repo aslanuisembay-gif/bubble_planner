@@ -10,6 +10,7 @@ import 'package:speech_to_text/speech_to_text.dart';
 import '../app_state.dart';
 import '../planner_languages.dart';
 import '../translations.dart';
+import '../services/voice_input_errors.dart';
 
 class NotesSheet extends StatefulWidget {
   const NotesSheet({super.key});
@@ -354,7 +355,30 @@ class _NoteEditorSheetState extends State<_NoteEditorSheet> {
       });
       return;
     }
-    final ok = await _speech.initialize();
+    final lang = context.read<AppState>().languageCode;
+    final ok = await _speech.initialize(
+      onError: (error) {
+        if (!mounted) return;
+        setState(() {
+          _listening = false;
+          _mode = _NoteInputMode.keyboard;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(voiceInputErrorSnackText(error.errorMsg, lang)),
+          ),
+        );
+      },
+      onStatus: (status) {
+        if (!mounted) return;
+        if (status == 'done' || status == 'notListening') {
+          setState(() {
+            _listening = false;
+            _mode = _NoteInputMode.keyboard;
+          });
+        }
+      },
+    );
     if (!ok || !mounted) return;
     final seg = _activeSegmentIndex.clamp(0, _segmentControllers.length - 1);
     setState(() {

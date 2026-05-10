@@ -518,6 +518,8 @@ class AppState extends ChangeNotifier {
   static const String _kPrefsUserProfile = 'bubble_planner_user_profile_v1';
   static const String _kPrefsPersonaSlots = 'bubble_planner_persona_slots_v1';
   static const String _kPrefsCloudTasksCache = 'bubble_planner_cloud_tasks_cache_v1';
+  /// Снимок задач при выходе из аккаунта (восстановление до прихода ответа Convex).
+  static const String _kPrefsCloudTasksSnapshot = 'bubble_planner_cloud_tasks_snapshot_v1';
 
   bool _legalConsentAccepted = false;
   String _languageCode = 'en';
@@ -950,20 +952,44 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  void logout() {
+  Future<void> logout() async {
     _stopConvexSync();
+    final hadCloudSession = _isLoggedIn &&
+        !_localDemoSession &&
+        ConvexEnv.isConfigured &&
+        ConvexEnv.backendReady;
+    final tasksSnapshot = List<BubbleTaskItem>.from(_tasks);
+
     if (ConvexEnv.isConfigured && ConvexEnv.backendReady) {
       unawaited(ConvexAuthSession.signOut());
     }
     _isLoggedIn = false;
     _localDemoSession = false;
     _convexError = null;
+
+    if (hadCloudSession) {
+      await _persistCloudTasksLogoutSnapshot(tasksSnapshot);
+    }
+
     _tasks.clear();
     _notes.clear();
     _selectedTaskIds.clear();
     _userProfile = const UserProfileData();
     _recomputeCategoryCounts();
     notifyListeners();
+  }
+
+  Future<void> _persistCloudTasksLogoutSnapshot(List<BubbleTaskItem> tasks) async {
+    final payload = jsonEncode(tasks.map((t) => t.toJson()).toList());
+    try {
+      if (kIsWeb) {
+        writeCloudTasksSnapshotSync(payload);
+      }
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kPrefsCloudTasksSnapshot, payload);
+    } catch (e, st) {
+      debugPrint('_persistCloudTasksLogoutSnapshot: $e\n$st');
+    }
   }
 
   void _stopConvexSync() {
@@ -1208,9 +1234,40 @@ class AppState extends ChangeNotifier {
     if (!_useConvex) return;
     try {
       final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString(_kPrefsCloudTasksCache);
-      if (raw == null || raw.isEmpty) return;
-      _setTasksFromConvexRaw(raw);
+      final convexRaw = prefs.getString(_kPrefsCloudTasksCache);
+
+      if (convexRaw != null && convexRaw.isNotEmpty) {
+        final decoded = jsonDecode(convexRaw);
+        if (decoded is List) {
+          final parsed = _parseTasksFromConvexJson(convexRaw);
+          _tasks
+            ..clear()
+            ..addAll(parsed);
+          _migrateAllTasksToCurrentPersona(persistConvex: _useConvex);
+          _recomputeCategoryCounts();
+          notifyListeners();
+          return;
+        }
+      }
+
+      String? snapRaw = kIsWeb ? readCloudTasksSnapshotSync() : null;
+      snapRaw ??= prefs.getString(_kPrefsCloudTasksSnapshot);
+      if (snapRaw == null || snapRaw.isEmpty) return;
+
+      final snapDecoded = jsonDecode(snapRaw);
+      if (snapDecoded is! List || snapDecoded.isEmpty) return;
+
+      _tasks.clear();
+      for (final e in snapDecoded) {
+        if (e is Map) {
+          _tasks.add(
+            BubbleTaskItem.fromJson(Map<String, dynamic>.from(e)),
+          );
+        }
+      }
+      _migrateAllTasksToCurrentPersona(persistConvex: _useConvex);
+      _recomputeCategoryCounts();
+      notifyListeners();
     } catch (e, st) {
       debugPrint('_restoreCloudTasksCache: $e\n$st');
     }

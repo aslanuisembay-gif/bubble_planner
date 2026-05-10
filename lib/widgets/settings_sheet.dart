@@ -599,9 +599,10 @@ class _AppearanceTab extends StatelessWidget {
         ),
         const SizedBox(height: 14),
         FilledButton.icon(
-          onPressed: () {
+          onPressed: () async {
             HapticFeedback.mediumImpact();
-            context.read<AppState>().logout();
+            await context.read<AppState>().logout();
+            if (!context.mounted) return;
             Navigator.of(context).pop();
           },
           icon: const Icon(Icons.logout_rounded, color: Color(0xFFBB2A2A)),

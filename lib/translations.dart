@@ -239,6 +239,8 @@ const Map<String, Map<String, String>> _translations = {
     'legalConsentSavedLine': 'Consent saved on this device.',
     'legalConsentSnackbar': 'Consent saved.',
     'confirmTaskTitle': 'Confirm Task',
+    'taskCreateFailed':
+        'Could not save the task. Check that you are signed in and try again.',
     'taskLabelUpper': 'TASK',
     'whenLabel': 'WHEN',
     'hourLabel': 'HOUR',
@@ -594,6 +596,8 @@ const Map<String, Map<String, String>> _translations = {
     'legalConsentSavedLine': 'Согласие сохранено на этом устройстве.',
     'legalConsentSnackbar': 'Согласие сохранено.',
     'confirmTaskTitle': 'Подтвердить задачу',
+    'taskCreateFailed':
+        'Не удалось сохранить задачу. Проверьте вход в аккаунт и попробуйте снова.',
     'taskLabelUpper': 'ЗАДАЧА',
     'whenLabel': 'КОГДА',
     'hourLabel': 'ЧАС',

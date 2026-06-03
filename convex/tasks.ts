@@ -146,7 +146,8 @@ export const create = mutation({
     } else if (reminderAtMs !== undefined) {
       doc.reminderAtMs = reminderAtMs;
     }
-    return await ctx.db.insert("tasks", doc);
+    const id = await ctx.db.insert("tasks", doc);
+    return { ok: true as const, id };
   },
 });
 

@@ -414,6 +414,7 @@ class AppState extends ChangeNotifier {
     unawaited(_loadRoutinesPrefs());
     unawaited(_loadRoutineDonePrefs());
     unawaited(_loadPersonaSlotsPrefs());
+    unawaited(_loadFontChoice());
   }
 
   Future<void> _bootstrapSession() async {
@@ -516,6 +517,7 @@ class AppState extends ChangeNotifier {
   static const String _kPrefsBubblePersona = 'bubble_planner_persona_v1';
   static const String _kPrefsThemeMode = 'bubble_planner_theme_mode_v1';
   static const String _kPrefsUserProfile = 'bubble_planner_user_profile_v1';
+  static const String _kPrefsFontChoice = 'bubble_planner_font_choice_v1';
   static const String _kPrefsPersonaSlots = 'bubble_planner_persona_slots_v1';
   static const String _kPrefsCloudTasksCache = 'bubble_planner_cloud_tasks_cache_v1';
   /// Снимок задач при выходе из аккаунта (восстановление до прихода ответа Convex).
@@ -765,7 +767,8 @@ class AppState extends ChangeNotifier {
 
     Future<void> finishCloudLogin() async {
       _isLoggedIn = true;
-      await _loadLocalUserProfile();
+      await _clearUserProfilePrefs();
+      _userProfile = const UserProfileData();
       notifyListeners();
       await _syncPersonaFromDisk();
       await Future.wait<void>([
@@ -863,37 +866,30 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  /// Сервер — источник истины; при пустом облаке поднимаем имя из локального кэша.
+  /// Сервер — источник истины для этого аккаунта. Не смешиваем с профилем другого пользователя из prefs.
   Future<void> _mergeCloudUserProfile() async {
     try {
       final raw = await ConvexClient.instance.query('userProfiles:getMine', {});
       final decoded = jsonDecode(raw);
       if (decoded == null) {
-        if (_userProfile.displayName.trim().isNotEmpty) {
-          await saveUserProfile(
-            displayName: _userProfile.displayName,
-            avatarBase64: _userProfile.avatarBase64,
-          );
-        }
+        _userProfile = const UserProfileData();
+        await _mirrorUserProfileToPrefs();
+        notifyListeners();
         return;
       }
       final m = Map<String, dynamic>.from(decoded as Map);
       final cloudName = '${m['displayName'] ?? ''}'.trim();
-      final cloudAvatar = m['avatarBase64'] == null ? null : '${m['avatarBase64']}';
-      if (cloudName.isNotEmpty || (cloudAvatar != null && cloudAvatar.isNotEmpty)) {
-        _userProfile = UserProfileData(
-          displayName: cloudName.isNotEmpty ? cloudName : _userProfile.displayName,
-          avatarBase64: cloudAvatar ?? _userProfile.avatarBase64,
-        );
-        await _mirrorUserProfileToPrefs();
-        notifyListeners();
-      }
-      if (cloudName.isEmpty && _userProfile.displayName.trim().isNotEmpty) {
-        await saveUserProfile(
-          displayName: _userProfile.displayName,
-          avatarBase64: _userProfile.avatarBase64,
-        );
-      }
+      final dynamic avRaw = m['avatarBase64'];
+      final String? cloudAvatar = avRaw == null
+          ? null
+          : (avRaw is String && avRaw.isEmpty ? null : '$avRaw');
+
+      _userProfile = UserProfileData(
+        displayName: cloudName,
+        avatarBase64: cloudAvatar,
+      );
+      await _mirrorUserProfileToPrefs();
+      notifyListeners();
     } catch (e, st) {
       debugPrint('_mergeCloudUserProfile: $e\n$st');
     }
@@ -971,12 +967,23 @@ class AppState extends ChangeNotifier {
       await _persistCloudTasksLogoutSnapshot(tasksSnapshot);
     }
 
+    await _clearUserProfilePrefs();
+
     _tasks.clear();
     _notes.clear();
     _selectedTaskIds.clear();
     _userProfile = const UserProfileData();
     _recomputeCategoryCounts();
     notifyListeners();
+  }
+
+  Future<void> _clearUserProfilePrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_kPrefsUserProfile);
+    } catch (e, st) {
+      debugPrint('_clearUserProfilePrefs: $e\n$st');
+    }
   }
 
   Future<void> _persistCloudTasksLogoutSnapshot(List<BubbleTaskItem> tasks) async {
@@ -1212,14 +1219,30 @@ class AppState extends ChangeNotifier {
     }).toList();
   }
 
-  void _setTasksFromConvexRaw(String raw) {
-    final next = _parseTasksFromConvexJson(raw);
+  bool _tasksMatchForPendingMerge(BubbleTaskItem a, BubbleTaskItem b) =>
+      a.title == b.title &&
+      a.dueAt.millisecondsSinceEpoch == b.dueAt.millisecondsSinceEpoch &&
+      a.categoryId == b.categoryId;
+
+  /// Подписка Convex может прийти раньше, чем create попадёт в БД — не теряем local_* задачи.
+  void _applyServerTaskList(List<BubbleTaskItem> server) {
+    final pending = _tasks.where((t) => t.id.startsWith('local_')).toList();
     _tasks
       ..clear()
-      ..addAll(next);
+      ..addAll(server);
+    for (final p in pending) {
+      if (!_tasks.any((t) => _tasksMatchForPendingMerge(t, p))) {
+        _tasks.add(p);
+      }
+    }
     _migrateAllTasksToCurrentPersona(persistConvex: _useConvex);
     _recomputeCategoryCounts();
     notifyListeners();
+  }
+
+  void _setTasksFromConvexRaw(String raw) {
+    final next = _parseTasksFromConvexJson(raw);
+    _applyServerTaskList(next);
     unawaited(_cacheCloudTasksRaw(raw));
   }
 
@@ -1240,12 +1263,7 @@ class AppState extends ChangeNotifier {
         final decoded = jsonDecode(convexRaw);
         if (decoded is List) {
           final parsed = _parseTasksFromConvexJson(convexRaw);
-          _tasks
-            ..clear()
-            ..addAll(parsed);
-          _migrateAllTasksToCurrentPersona(persistConvex: _useConvex);
-          _recomputeCategoryCounts();
-          notifyListeners();
+          _applyServerTaskList(parsed);
           return;
         }
       }
@@ -1432,9 +1450,38 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  void setFontChoice(AppFontChoice choice) {
+  Future<void> setFontChoice(AppFontChoice choice) async {
+    if (_fontChoice == choice) return;
     _fontChoice = choice;
     notifyListeners();
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.setString(_kPrefsFontChoice, choice.name);
+    } catch (e, st) {
+      debugPrint('setFontChoice: $e\n$st');
+    }
+  }
+
+  Future<void> _loadFontChoice() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      final raw = p.getString(_kPrefsFontChoice);
+      final next = _parseFontChoice(raw);
+      if (next != _fontChoice) {
+        _fontChoice = next;
+        notifyListeners();
+      }
+    } catch (e, st) {
+      debugPrint('_loadFontChoice: $e\n$st');
+    }
+  }
+
+  AppFontChoice _parseFontChoice(String? raw) {
+    if (raw == null || raw.isEmpty) return AppFontChoice.systemDefault;
+    for (final v in AppFontChoice.values) {
+      if (v.name == raw) return v;
+    }
+    return AppFontChoice.systemDefault;
   }
 
   Future<void> _loadColorPalette() async {
@@ -2140,104 +2187,88 @@ class AppState extends ChangeNotifier {
   }
 
   void addTaskFromText(String rawText) {
-    final parsed = parseTask(rawText);
-    final categoryId = _categoryIdByParsedCategory(parsed.category);
-    final tag = _tagFromParsedCategory(parsed.category);
-    final dueAt = parsed.dueAt ?? DateTime.now().add(const Duration(hours: 2));
-    if (_useConvex) {
-      unawaited(
-        _convexCreate(
-          categoryId: categoryId,
-          categoryTag: tag,
-          title: parsed.text.toUpperCase(),
-          dueAt: dueAt,
-          isDone: false,
-        ),
-      );
-      return;
-    }
-    _idSeed += 1;
-    _tasks.add(
-      BubbleTaskItem(
-        id: 't$_idSeed',
-        categoryId: categoryId,
-        categoryTag: tag,
-        title: parsed.text.toUpperCase(),
-        dueAt: dueAt,
-      ),
-    );
-    _recomputeCategoryCounts();
-    _touchLocalTasks();
-    notifyListeners();
+    unawaited(_addTaskCore(
+      rawTitle: rawText,
+      dueAt: parseTask(rawText).dueAt ?? DateTime.now().add(const Duration(hours: 2)),
+    ));
   }
 
-  void addConfirmedTask(String rawTitle, DateTime dueAt) {
-    final parsed = parseTask(rawTitle);
-    final categoryId = _categoryIdByParsedCategory(parsed.category);
-    final tag = _tagFromParsedCategory(parsed.category);
-    if (_useConvex) {
-      unawaited(
-        _convexCreate(
-          categoryId: categoryId,
-          categoryTag: tag,
-          title: parsed.text.toUpperCase(),
-          dueAt: dueAt,
-          isDone: false,
-        ),
-      );
-      return;
-    }
-    _idSeed += 1;
-    _tasks.add(
-      BubbleTaskItem(
-        id: 't$_idSeed',
-        categoryId: categoryId,
-        categoryTag: tag,
-        title: parsed.text.toUpperCase(),
-        dueAt: dueAt,
-      ),
-    );
-    _recomputeCategoryCounts();
-    _touchLocalTasks();
-    notifyListeners();
-  }
+  Future<bool> addConfirmedTask(String rawTitle, DateTime dueAt) =>
+      _addTaskCore(rawTitle: rawTitle, dueAt: dueAt);
 
-  void addTaskWithDue({
+  Future<bool> addTaskWithDue({
     required String title,
     required DateTime dueAt,
     String? categoryId,
     String? categoryTag,
-  }) {
+  }) async {
     final id = categoryId ?? _defaultTaskCategoryId();
     final tag = categoryTag ?? categoryTagForCategoryId(id);
-    if (_useConvex) {
-      unawaited(
-        _convexCreate(
-          categoryId: id,
-          categoryTag: tag,
-          title: title.toUpperCase(),
-          dueAt: dueAt,
-          isDone: false,
-        ),
-      );
-      return;
-    }
-    _idSeed += 1;
+    final parsed = parseTask(title);
+    return _addTaskCore(
+      rawTitle: title,
+      dueAt: dueAt,
+      categoryIdOverride: id,
+      categoryTagOverride: tag,
+      titleOverride: parsed.text.toUpperCase(),
+    );
+  }
+
+  Future<bool> _addTaskCore({
+    required String rawTitle,
+    required DateTime dueAt,
+    String? categoryIdOverride,
+    String? categoryTagOverride,
+    String? titleOverride,
+  }) async {
+    final parsed = parseTask(rawTitle);
+    final categoryId =
+        categoryIdOverride ?? _categoryIdByParsedCategory(parsed.category);
+    final tag = categoryTagOverride ?? _tagFromParsedCategory(parsed.category);
+    final title = titleOverride ?? parsed.text.toUpperCase();
+    if (title.trim().isEmpty) return false;
+
+    final localId = 'local_${DateTime.now().millisecondsSinceEpoch}';
     _tasks.add(
       BubbleTaskItem(
-        id: 't$_idSeed',
-        categoryId: id,
+        id: localId,
+        categoryId: categoryId,
         categoryTag: tag,
-        title: title.toUpperCase(),
+        title: title,
         dueAt: dueAt,
       ),
     );
     _recomputeCategoryCounts();
+    notifyListeners();
+
+    if (_useConvex) {
+      final ok = await _convexCreate(
+        categoryId: categoryId,
+        categoryTag: tag,
+        title: title,
+        dueAt: dueAt,
+        isDone: false,
+      );
+      if (!ok) {
+        _tasks.removeWhere((t) => t.id == localId);
+        _recomputeCategoryCounts();
+        notifyListeners();
+        return false;
+      }
+      return true;
+    }
+
+    _idSeed += 1;
+    final i = _tasks.indexWhere((t) => t.id == localId);
+    if (i >= 0) {
+      _tasks[i] = _tasks[i].copyWith(id: 't$_idSeed');
+    }
     _touchLocalTasks();
     notifyListeners();
+    return true;
   }
 
-  Future<void> _convexCreate({
+  Future<bool> _convexCreate({
     required String categoryId,
     required String categoryTag,
     required String title,
@@ -2246,6 +2277,7 @@ class AppState extends ChangeNotifier {
     List<String>? recurrenceDays,
     List<int>? reminderOffsets,
   }) async {
+    if (!_useConvex) return true;
     try {
       final args = <String, dynamic>{
         'categoryId': categoryId,
@@ -2262,11 +2294,13 @@ class AppState extends ChangeNotifier {
         args['reminderOffsets'] = ro;
       }
       await ConvexClient.instance.mutation(name: 'tasks:create', args: args);
-      if (_useConvex) {
-        unawaited(_convexHydrateTasksFromQuery());
-      }
+      await _convexHydrateTasksFromQuery();
+      return true;
     } catch (e, st) {
       debugPrint('Convex create: $e\n$st');
+      _convexError = _formatConvexError(e);
+      notifyListeners();
+      return false;
     }
   }
 

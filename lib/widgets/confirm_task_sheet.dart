@@ -144,10 +144,21 @@ class _ConfirmTaskSheetState extends State<ConfirmTaskSheet> {
                 Expanded(
                   flex: 2,
                   child: FilledButton(
-                    onPressed: () {
+                    onPressed: () async {
                       final text = _title.text.trim();
                       if (text.isEmpty) return;
-                      context.read<AppState>().addConfirmedTask(text, _dueAt);
+                      final ok = await context
+                          .read<AppState>()
+                          .addConfirmedTask(text, _dueAt);
+                      if (!context.mounted) return;
+                      if (!ok) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(tr('taskCreateFailed', lang: lang)),
+                          ),
+                        );
+                        return;
+                      }
                       Navigator.pop(context, true);
                     },
                     style: FilledButton.styleFrom(

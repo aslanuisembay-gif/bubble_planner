@@ -1296,6 +1296,10 @@ class _TalkPageState extends State<_TalkPage> {
     if (_isListening) {
       await _speech.stop();
       setState(() => _isListening = false);
+      final text = _capturedEdit.text.trim();
+      if (text.isNotEmpty) {
+        await _continueWithCapturedText();
+      }
       return;
     }
     final lang = context.read<AppState>().languageCode;

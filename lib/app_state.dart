@@ -763,7 +763,8 @@ class AppState extends ChangeNotifier {
     _localDemoSession = false;
     _convexLoading = true;
     notifyListeners();
-    const signInTimeout = Duration(seconds: 18);
+    final signInTimeout =
+        kIsWeb ? const Duration(seconds: 90) : const Duration(seconds: 30);
 
     Future<void> finishCloudLogin() async {
       _isLoggedIn = true;
@@ -785,7 +786,7 @@ class AppState extends ChangeNotifier {
 
     Future<void> signInOnce({
       required bool asSignUp,
-      Duration timeout = signInTimeout,
+      required Duration timeout,
     }) async {
       await ConvexAuthSession.signIn(
         email: u,
@@ -800,18 +801,19 @@ class AppState extends ChangeNotifier {
     }
 
     try {
-      await signInOnce(asSignUp: signUp);
+      await ConvexAuthSession.warmUpConnection();
+      await signInOnce(asSignUp: signUp, timeout: signInTimeout);
       await finishCloudLogin();
       return true;
     } catch (e, st) {
-      // Sometimes the account is created server-side but the action response times out on web.
-      // In that case, try a normal sign-in once before showing an error.
-      if (signUp && e.toString().contains('TimeoutException')) {
+      final timedOut = e is TimeoutException ||
+          e.toString().toLowerCase().contains('timeout') ||
+          e.toString().toLowerCase().contains('timed out');
+      // На web ответ auth иногда приходит позже таймаута — повторить обычный sign-in.
+      if (timedOut) {
         try {
-          await signInOnce(
-            asSignUp: false,
-            timeout: const Duration(seconds: 8),
-          );
+          await ConvexAuthSession.warmUpConnection();
+          await signInOnce(asSignUp: false, timeout: signInTimeout);
           await finishCloudLogin();
           return true;
         } catch (_) {
@@ -831,8 +833,10 @@ class AppState extends ChangeNotifier {
   String _formatConvexError(Object e) {
     if (e is TimeoutException) {
       final m = e.message?.trim();
-      if (m != null && m.isNotEmpty) return m;
-      return 'Request timed out. Please try again.';
+      if (m != null && m.isNotEmpty) {
+        return app_tr.tr('loginTimeoutHint', lang: _languageCode);
+      }
+      return app_tr.tr('loginTimeoutHint', lang: _languageCode);
     }
     var s = e.toString();
     final lower = s.toLowerCase();
@@ -2278,30 +2282,48 @@ class AppState extends ChangeNotifier {
     List<int>? reminderOffsets,
   }) async {
     if (!_useConvex) return true;
-    try {
-      final args = <String, dynamic>{
-        'categoryId': categoryId,
-        'categoryTag': categoryTag,
-        'title': title,
-        'dueAtMs': dueAt.millisecondsSinceEpoch,
-        'isDone': isDone,
-      };
-      if (recurrenceDays != null) {
-        args['recurrenceDays'] = recurrenceDays;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      if (!await ConvexAuthSession.ensureSessionForWrite()) {
+        _convexError = app_tr.tr('taskSessionExpired', lang: _languageCode);
+        notifyListeners();
+        return false;
       }
-      final ro = _normalizeReminderOffsets(reminderOffsets);
-      if (ro != null && ro.isNotEmpty) {
-        args['reminderOffsets'] = ro;
+      try {
+        final args = <String, dynamic>{
+          'categoryId': categoryId,
+          'categoryTag': categoryTag,
+          'title': title,
+          'dueAtMs': dueAt.millisecondsSinceEpoch,
+          'isDone': isDone,
+        };
+        if (recurrenceDays != null) {
+          args['recurrenceDays'] = recurrenceDays;
+        }
+        final ro = _normalizeReminderOffsets(reminderOffsets);
+        if (ro != null && ro.isNotEmpty) {
+          args['reminderOffsets'] = ro;
+        }
+        await ConvexClient.instance.mutation(name: 'tasks:create', args: args);
+        await _convexHydrateTasksFromQuery();
+        _convexError = null;
+        notifyListeners();
+        return true;
+      } catch (e, st) {
+        debugPrint('Convex create (attempt $attempt): $e\n$st');
+        final msg = e.toString().toLowerCase();
+        final authLike = msg.contains('unauthenticated') ||
+            msg.contains('not authenticated') ||
+            msg.contains('auth');
+        if (attempt == 0 && authLike) {
+          await ConvexAuthSession.refreshJwtIfNeeded();
+          continue;
+        }
+        _convexError = _formatConvexError(e);
+        notifyListeners();
+        return false;
       }
-      await ConvexClient.instance.mutation(name: 'tasks:create', args: args);
-      await _convexHydrateTasksFromQuery();
-      return true;
-    } catch (e, st) {
-      debugPrint('Convex create: $e\n$st');
-      _convexError = _formatConvexError(e);
-      notifyListeners();
-      return false;
     }
+    return false;
   }
 
   void updateTaskDue(String taskId, DateTime dueAt) {

@@ -113,6 +113,8 @@ const Map<String, Map<String, String>> _translations = {
         'Local demo: use demo / demo without the cloud.',
     'loginFootnoteOffline': 'Use demo / demo to continue without the cloud',
     'loginErrorOfflineDemo': 'Offline: use demo / demo',
+    'loginTimeoutHint':
+        'Sign-in timed out (slow connection). Wait a few seconds and try again, or refresh the page.',
     'loginShowPassword': 'Show password',
     'loginHidePassword': 'Hide password',
     'accountSectionTitle': 'Account',
@@ -240,7 +242,9 @@ const Map<String, Map<String, String>> _translations = {
     'legalConsentSnackbar': 'Consent saved.',
     'confirmTaskTitle': 'Confirm Task',
     'taskCreateFailed':
-        'Could not save the task. Check that you are signed in and try again.',
+        'Could not save the task. Sign out, sign in again, then try once more.',
+    'taskSessionExpired':
+        'Session expired. Sign out and sign in again.',
     'taskLabelUpper': 'TASK',
     'whenLabel': 'WHEN',
     'hourLabel': 'HOUR',
@@ -468,6 +472,8 @@ const Map<String, Map<String, String>> _translations = {
         'Офлайн без облака: логин demo, пароль demo.',
     'loginFootnoteOffline': 'Без облака: введите demo / demo',
     'loginErrorOfflineDemo': 'Офлайн: только demo / demo',
+    'loginTimeoutHint':
+        'Вход не успел завершиться (медленная сеть). Подождите 5–10 секунд и нажмите «Войти» снова или обновите страницу.',
     'loginShowPassword': 'Показать пароль',
     'loginHidePassword': 'Скрыть пароль',
     'accountSectionTitle': 'Аккаунт',
@@ -597,7 +603,9 @@ const Map<String, Map<String, String>> _translations = {
     'legalConsentSnackbar': 'Согласие сохранено.',
     'confirmTaskTitle': 'Подтвердить задачу',
     'taskCreateFailed':
-        'Не удалось сохранить задачу. Проверьте вход в аккаунт и попробуйте снова.',
+        'Не удалось сохранить задачу. Выйдите из аккаунта, войдите снова и повторите.',
+    'taskSessionExpired':
+        'Сессия истекла. Выйдите и войдите снова.',
     'taskLabelUpper': 'ЗАДАЧА',
     'whenLabel': 'КОГДА',
     'hourLabel': 'ЧАС',

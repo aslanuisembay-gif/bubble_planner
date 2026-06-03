@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -30,6 +32,8 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!cloud) {
       _user.text = 'demo';
       _pass.text = 'demo';
+    } else {
+      unawaited(ConvexAuthSession.warmUpConnection());
     }
   }
 

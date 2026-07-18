@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title">
+  <title id="title">Boston Global</title>
+  <defs>
+    <linearGradient id="g" x1="18" y1="16" x2="110" y2="116" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5CA7FF"/>
+      <stop offset="0.58" stop-color="#2F6BFF"/>
+      <stop offset="1" stop-color="#07182D"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="32" fill="#06111F"/>
+  <rect x="10" y="10" width="108" height="108" rx="26" fill="url(#g)" opacity="0.96"/>
+  <path d="M37 82V38h22.1c8.3 0 14.1 4.7 14.1 11.6 0 4.3-2.2 7.9-6.2 9.8 5.3 1.7 8.2 5.5 8.2 10.7 0 7.2-6 11.9-15.1 11.9H37Zm11-26.5h9.2c3.4 0 5.5-1.8 5.5-4.7 0-2.8-2.1-4.5-5.5-4.5H48v9.2Zm0 18.2h10.5c3.7 0 5.9-1.9 5.9-5 0-3-2.2-4.9-5.9-4.9H48v9.9Zm39.9 9.1c-6.3 0-11.4-2-15.2-6-3.7-4-5.6-9.5-5.6-16.4s1.9-12.4 5.8-16.5c3.9-4.1 9.1-6.1 15.6-6.1 7.7 0 13.6 3 17.6 8.9l-8.1 5.8c-2.2-3.4-5.3-5.1-9.4-5.1-3.4 0-6 1.2-7.9 3.5-1.9 2.3-2.8 5.5-2.8 9.5 0 4.1 1 7.3 2.9 9.6 1.9 2.3 4.6 3.4 8 3.4 3.1 0 5.8-.8 8.1-2.5v-5.3H86.6v-8.6h20.1v18.5c-4.5 4.8-10.8 7.3-18.8 7.3Z" fill="#fff"/>
+</svg>

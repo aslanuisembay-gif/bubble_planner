@@ -1,0 +1,16 @@
+{
+  "name": "Boston Global",
+  "short_name": "Boston Global",
+  "description": "AI consulting, automation, AI agents, custom AI applications, roadmaps, training, and implementation for U.S. businesses.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#06111f",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

@@ -1,8 +1,14 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "echo \"No install required for static marketing site\"",
-  "buildCommand": "echo \"Static site ready\"",
+  "buildCommand": "node scripts/prepare-static-site.js",
   "outputDirectory": "site",
+  "rewrites": [
+    {
+      "source": "/bubble-planner/:path*",
+      "destination": "/bubble-planner/index.html"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",

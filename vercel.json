@@ -1,31 +1,27 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "git clone https://github.com/flutter/flutter.git --depth 1 -b stable .vercel_flutter && ./.vercel_flutter/bin/flutter --version && ./.vercel_flutter/bin/flutter pub get",
-  "buildCommand": "./.vercel_flutter/bin/flutter build web --release --dart-define-from-file=config/dart_defines/prod.json --base-href /",
-  "outputDirectory": "build/web",
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
-  ],
+  "installCommand": "echo \"No install required for static marketing site\"",
+  "buildCommand": "echo \"Static site ready\"",
+  "outputDirectory": "site",
   "headers": [
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" }
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" }
       ]
     },
     {
       "source": "/index.html",
       "headers": [
-        { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate, max-age=0" }
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
       ]
     },
     {
-      "source": "/flutter_service_worker.js",
+      "source": "/(styles.css|script.js|favicon.svg|og-image.svg|site.webmanifest)",
       "headers": [
-        { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate, max-age=0" }
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
       ]
     }
   ]

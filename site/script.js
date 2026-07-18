@@ -9,6 +9,18 @@ if (year) {
   year.textContent = new Date().getFullYear();
 }
 
+if ("serviceWorker" in navigator && window.location.pathname === "/") {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.getRegistrations().then((registrations) => {
+      registrations.forEach((registration) => {
+        if (registration.scope === `${window.location.origin}/`) {
+          registration.unregister();
+        }
+      });
+    });
+  });
+}
+
 const setHeaderState = () => {
   if (!header) return;
   header.classList.toggle("is-scrolled", window.scrollY > 8);
